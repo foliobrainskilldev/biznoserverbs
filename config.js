@@ -1,3 +1,23 @@
+require('dotenv').config();
+const bcrypt = require('bcryptjs');
+const prisma = require('./models');
+
+const config = {
+    port: process.env.PORT || 3000,
+    jwtSecret: process.env.JWT_SECRET,
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN,
+    adminEmail: process.env.ADMIN_EMAIL,
+    adminPassword: process.env.ADMIN_PASSWORD,
+    resendApiKey: process.env.RESEND_API_KEY,
+    emailFrom: process.env.EMAIL_FROM || 'Bizno <geral@bizno.store>',
+    cloudinary: {
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+    },
+    frontendURL: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : 'http://localhost:3000',
+};
+
 const initializeDefaults = async () => {
     try {
         if (!config.adminEmail || !config.adminPassword) {
