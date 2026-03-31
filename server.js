@@ -3,7 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { config, initializeDefaults } = require('./config');
 const routes = require('./routes');
-const prisma = require('./models'); // Importa a conexão do Prisma
+const prisma = require('./models');
 
 const app = express();
 
@@ -27,7 +27,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api', routes);
 
 // --- Conexão com a Base de Dados e Inicialização do Servidor ---
-console.log('A ligar ao PostgreSQL no Supabase...');
+console.log('A ligar ao PostgreSQL...');
 
 prisma.$connect()
     .then(async () => {
@@ -43,6 +43,11 @@ prisma.$connect()
         });
     })
     .catch(err => {
-        console.error('Falha ao ligar ao PostgreSQL:', err);
+        // Log melhorado para capturar exatamente o motivo do crash no Render
+        console.error('\n=== ERRO FATAL AO INICIAR O SERVIDOR ===');
+        console.error('Falha ao ligar ao PostgreSQL ou ao inicializar dados padrão.');
+        console.error('MENSAGEM DE ERRO:', err.message);
+        console.error('STACK TRACE:', err);
+        console.error('========================================\n');
         process.exit(1);
     });
