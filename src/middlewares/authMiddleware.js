@@ -1,7 +1,8 @@
+// Ficheiro: src/middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
-const { config } = require('./config');
-const prisma = require('./models');
-const { handleError } = require('./utils');
+const { config } = require('../config/setup');
+const prisma = require('../config/db');
+const { handleError } = require('../utils/helpers');
 
 const verifyToken = async (req, res, next, requiredRole) => {
     const authHeader = req.headers['authorization'];
@@ -14,7 +15,6 @@ const verifyToken = async (req, res, next, requiredRole) => {
     try {
         const decoded = jwt.verify(token, config.jwtSecret);
         
-        // Busca o utilizador no PostgreSQL
         const user = await prisma.user.findUnique({
             where: { id: decoded.id }
         });
@@ -23,7 +23,7 @@ const verifyToken = async (req, res, next, requiredRole) => {
             return res.status(401).json({ success: false, message: 'Token inválido. Utilizador não encontrado.' });
         }
 
-        // Removemos os dados sensíveis (o Prisma não tem um .select('-password') direto como o Mongoose)
+        // Removemos dados sensíveis da sessão
         delete user.password;
         delete user.verificationCode;
         delete user.passwordResetCode;
@@ -47,23 +47,14 @@ const verifyToken = async (req, res, next, requiredRole) => {
     }
 };
 
-const verifyUserToken = (req, res, next) => {
-    verifyToken(req, res, next);
-};
-
-const verifyAdminToken = (req, res, next) => {
-    verifyToken(req, res, next, 'admin');
-};
+const verifyUserToken = (req, res, next) => verifyToken(req, res, next);
+const verifyAdminToken = (req, res, next) => verifyToken(req, res, next, 'admin');
 
 /**
- * Middleware para verificar se o plano do utilizador está ativo.
- * Bloqueia ações de escrita (POST, PUT, DELETE) se o plano estiver expirado ou pendente.
+ * Verifica se o plano do utilizador está ativo antes de permitir ações de escrita.
  */
 const checkPlanStatus = (req, res, next) => {
-    // Permite que pedidos GET passem sempre, para que o utilizador possa ver os seus dados.
-    if (req.method === 'GET') {
-        return next();
-    }
+    if (req.method === 'GET') return next();
 
     const allowedStatus = ['active', 'free'];
     

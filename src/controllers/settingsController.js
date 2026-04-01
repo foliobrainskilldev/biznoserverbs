@@ -1,7 +1,8 @@
-const prisma = require('./models');
-const { handleError, sanitizeStoreNameForURL } = require('./utils');
+// Ficheiro: src/controllers/settingsController.js
+const prisma = require('../config/db');
+const { handleError, sanitizeStoreNameForURL } = require('../utils/helpers');
 const cloudinary = require('cloudinary').v2;
-const { config } = require('./config');
+const { config } = require('../config/setup');
 
 cloudinary.config(config.cloudinary);
 
@@ -32,14 +33,22 @@ exports.getAccountInfo = async (req, res) => {
 exports.updateAccountInfo = async (req, res) => {
     try {
         const { storeName, displayName, whatsapp } = req.body;
-        if (!storeName || !displayName || !whatsapp) return res.status(400).json({ success: false, message: 'Campos obrigatórios em falta.' });
+        if (!storeName || !displayName || !whatsapp) {
+            return res.status(400).json({ success: false, message: 'Campos obrigatórios em falta.' });
+        }
 
+        // Esta linha é crucial para o subdomínio funcionar de forma limpa
         const urlFriendlyStoreName = sanitizeStoreNameForURL(storeName);
-        if (!urlFriendlyStoreName) return res.status(400).json({ success: false, message: 'Nome da loja inválido.' });
+        if (!urlFriendlyStoreName) {
+            return res.status(400).json({ success: false, message: 'Nome da loja inválido.' });
+        }
 
+        // Verifica se outra loja já está a usar este subdomínio
         if (urlFriendlyStoreName !== req.user.storeName) {
             const existingStore = await prisma.user.findFirst({ where: { storeName: urlFriendlyStoreName } });
-            if (existingStore) return res.status(409).json({ success: false, message: 'URL já utilizada por outra conta.' });
+            if (existingStore) {
+                return res.status(409).json({ success: false, message: 'Este URL/Subdomínio já está em uso por outra conta.' });
+            }
         }
 
         const updatedUser = await prisma.user.update({
@@ -50,7 +59,12 @@ exports.updateAccountInfo = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Conta atualizada com sucesso!',
-            account: { storeName: updatedUser.storeName, displayName: updatedUser.displayName, whatsapp: updatedUser.whatsapp, email: updatedUser.email }
+            account: { 
+                storeName: updatedUser.storeName, 
+                displayName: updatedUser.displayName, 
+                whatsapp: updatedUser.whatsapp, 
+                email: updatedUser.email 
+            }
         });
     } catch (error) {
         handleError(res, error, 'Erro ao atualizar a conta.');

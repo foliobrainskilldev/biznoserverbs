@@ -1,4 +1,5 @@
-const prisma = require('./models');
+// Ficheiro: src/utils/helpers.js
+const prisma = require('../config/db');
 
 const generateNumericCode = (length = 6) => {
     const min = Math.pow(10, length - 1);
@@ -17,7 +18,7 @@ const calculateDiscountPercentage = (originalPrice, promotionalPrice) => {
 const handleError = (res, error, message, statusCode = 500) => {
     console.error(`[BIZNO_ERROR] ${new Date().toISOString()}: ${message}`, error);
     
-    // Regista o erro no PostgreSQL usando Prisma
+    // Regista o erro no BD
     prisma.systemLog.create({
         data: {
             level: 'error',
@@ -25,7 +26,7 @@ const handleError = (res, error, message, statusCode = 500) => {
             context: error.stack || 'No stack available.',
             meta: { name: error.name, cause: error.message }
         }
-    }).catch(err => console.error('Failed to save error log:', err));
+    }).catch(err => console.error('Falha ao guardar log de erro:', err));
 
     return res.status(statusCode).json({
         success: false,
@@ -35,7 +36,6 @@ const handleError = (res, error, message, statusCode = 500) => {
 
 const sanitizeStoreNameForURL = (storeName) => {
     if (!storeName) return '';
-    
     return storeName
         .toLowerCase()
         .replace(/\s+/g, '')

@@ -1,9 +1,10 @@
+// Ficheiro: src/controllers/adminController.js
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const prisma = require('./models');
-const { handleError } = require('./utils');
-const { config } = require('./config');
-const mailer = require('./mailer');
+const prisma = require('../config/db');
+const { handleError } = require('../utils/helpers');
+const { config } = require('../config/setup');
+const mailer = require('../services/mailer');
 
 exports.loginAdmin = async (req, res) => {
     const { email, password } = req.body;
@@ -33,7 +34,6 @@ exports.getAdminDashboard = async (req, res) => {
 
         const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
-        // Agrupamento de receitas local (Substitui aggregate)
         const allApprovedPayments = await prisma.payment.findMany({ where: { status: 'approved' }, include: { plan: true } });
         const monthlyPayments = allApprovedPayments.filter(p => p.createdAt >= startOfMonth);
 
@@ -57,7 +57,6 @@ exports.getAllUsers = async (req, res) => {
             orderBy: { createdAt: 'desc' }
         });
         
-        // Remove senhas antes de enviar
         const safeUsers = users.map(u => {
             const { password, verificationCode, passwordResetCode, passwordResetExpires, ...safeUser } = u;
             return safeUser;
@@ -112,7 +111,7 @@ exports.approvePayment = async (req, res) => {
         const payment = await prisma.payment.findUnique({ where: { id: req.params.id }, include: { plan: true, user: true } });
         if (!payment || payment.status !== 'pending') return res.status(404).json({ success: false, message: 'Pagamento não encontrado.' });
 
-        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Adiciona 30 dias
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
         
         await prisma.$transaction([
             prisma.user.update({ where: { id: payment.userId }, data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt } }),

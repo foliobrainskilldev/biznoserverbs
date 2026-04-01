@@ -1,48 +1,53 @@
+// Ficheiro: src/server.js
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const { config, initializeDefaults } = require('./config');
 const routes = require('./routes');
-const prisma = require('./models'); // Importa a conexão do Prisma
+const prisma = require('./config/db');
+const { config, initializeDefaults } = require('./config/setup');
 
 const app = express();
 
-// --- Middlewares Essenciais ---
+// Configuração CORS para permitir subdomínios (*.bizno.store)
+const corsOptions = {
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        if (
+            origin.endsWith('.bizno.store') || 
+            origin === 'https://bizno.store' ||
+            origin.endsWith('.vercel.app') || 
+            origin.includes('localhost')
+        ) {
+            callback(null, true);
+        } else {
+            callback(new Error('Não permitido pelo CORS'));
+        }
+    },
+    optionsSuccessStatus: 200
+};
 
-let corsOptions;
-if (config.frontendURL === '*' || (Array.isArray(config.frontendURL) && config.frontendURL.includes('*'))) {
-    corsOptions = {}; 
-} else {
-    corsOptions = {
-      origin: config.frontendURL,
-      optionsSuccessStatus: 200
-    };
-}
 app.use(cors(corsOptions));
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// --- Rotas da API ---
+// Todas as rotas agora passarão pelo index de rotas
 app.use('/api', routes);
 
-// --- Conexão com a Base de Dados e Inicialização do Servidor ---
-console.log('A ligar ao PostgreSQL no Supabase...');
+console.log('A ligar ao PostgreSQL...');
 
 prisma.$connect()
     .then(async () => {
         console.log('PostgreSQL ligado com sucesso via Prisma.');
-        
-        // Inicializa dados padrão (Admin e Planos)
         await initializeDefaults();
         
-        // Inicia o servidor
         app.listen(config.port, () => {
             console.log(`Servidor Bizno a correr na porta ${config.port}`);
-            console.log(`Frontend URLs configuradas para:`, config.frontendURL);
+            console.log(`CORS configurado para subdomínios *.bizno.store e Vercel.`);
         });
     })
     .catch(err => {
-        console.error('Falha ao ligar ao PostgreSQL:', err);
+        console.error('\n=== ERRO FATAL AO INICIAR O SERVIDOR ===');
+        console.error('MENSAGEM DE ERRO:', err.message);
         process.exit(1);
     });
