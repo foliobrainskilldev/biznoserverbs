@@ -4,7 +4,7 @@ const router = express.Router();
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 
-// Importação dos Controllers refatorados
+// Importação dos Controllers
 const authController = require('../controllers/authController');
 const storeController = require('../controllers/storeController');
 const dashboardController = require('../controllers/dashboardController');
@@ -28,12 +28,13 @@ router.post('/reset-password', resetPasswordRules(), validate, authController.re
 
 // ==========================================
 // 2. ROTAS PÚBLICAS DA LOJA (USADAS PELO SUBDOMÍNIO)
-// O front-end captura "loja.bizno.store" e faz GET /api/store/loja
 // ==========================================
 router.get('/store/:storeName', storeController.getPublicStoreData);
 router.get('/product/:productId', storeController.getPublicProductData);
-router.get('/sitemap.xml', storeController.generateSitemap);
 router.get('/plans', storeController.getPlans); 
+router.post('/interaction', storeController.logInteraction);
+router.get('/sitemap.xml', storeController.generateSitemap);
+router.get('/bank-accounts', adminController.getBankAccounts); // Público para página de planos
 
 // ==========================================
 // 3. ROTAS DO PAINEL DO UTILIZADOR
@@ -41,12 +42,14 @@ router.get('/plans', storeController.getPlans);
 const userProtectedRoutes = express.Router();
 userProtectedRoutes.use(verifyUserToken);
 
-// Dashboard
+// Dashboard & Stats
 userProtectedRoutes.get('/dashboard', dashboardController.getDashboardData);
 userProtectedRoutes.get('/dashboard/charts', dashboardController.getDashboardChartData);
 userProtectedRoutes.get('/statistics', dashboardController.getStatisticsData);
+userProtectedRoutes.get('/orders', dashboardController.getOrders);
+userProtectedRoutes.get('/messages', dashboardController.getMessages);
 
-// Produtos & Categorias (Escrita validada por checkPlanStatus)
+// Produtos & Categorias
 userProtectedRoutes.get('/products', productController.getProducts);
 userProtectedRoutes.post('/products', checkPlanStatus, upload.array('images', 10), productController.createProduct);
 userProtectedRoutes.put('/products/:id', checkPlanStatus, upload.array('images', 10), productController.updateProduct);
@@ -59,12 +62,21 @@ userProtectedRoutes.post('/categories', checkPlanStatus, productController.creat
 userProtectedRoutes.put('/categories/:id', checkPlanStatus, productController.updateCategory);
 userProtectedRoutes.delete('/categories/:id', checkPlanStatus, productController.deleteCategory);
 
-// Configurações
+// Configurações e Conta
 userProtectedRoutes.get('/my-account', settingsController.getAccountInfo);
 userProtectedRoutes.put('/my-account', checkPlanStatus, settingsController.updateAccountInfo);
+userProtectedRoutes.get('/visual', settingsController.getVisualTheme);
 userProtectedRoutes.post('/visual', checkPlanStatus, settingsController.updateVisualTheme);
+userProtectedRoutes.post('/visual/apply-preset', checkPlanStatus, settingsController.applyThemePreset);
 userProtectedRoutes.post('/media/cover', checkPlanStatus, upload.single('coverImage'), settingsController.updateCoverImage);
+userProtectedRoutes.post('/media/profile', checkPlanStatus, upload.single('profileImage'), settingsController.updateProfileImage);
+userProtectedRoutes.get('/media', settingsController.getMedia);
+userProtectedRoutes.delete('/media/:asset_id', checkPlanStatus, settingsController.deleteMedia);
+userProtectedRoutes.get('/contacts', settingsController.getContacts);
+userProtectedRoutes.post('/contacts', checkPlanStatus, settingsController.updateContacts);
 userProtectedRoutes.post('/payment/upload', checkPlanStatus, upload.single('proof'), settingsController.uploadPaymentProof);
+userProtectedRoutes.get('/my-plan', settingsController.getCurrentPlan);
+userProtectedRoutes.get('/payment/history', settingsController.getPaymentHistory);
 
 router.use('/', userProtectedRoutes);
 
@@ -77,9 +89,21 @@ adminProtectedRoutes.use(verifyAdminToken);
 
 adminProtectedRoutes.get('/admin/dashboard', adminController.getAdminDashboard);
 adminProtectedRoutes.get('/admin/users', adminController.getAllUsers);
+adminProtectedRoutes.post('/admin/users/:id/block', adminController.blockUser);
+adminProtectedRoutes.post('/admin/users/:id/unblock', adminController.unblockUser);
+adminProtectedRoutes.post('/admin/users/assign-plan', adminController.assignPlanToUser);
+adminProtectedRoutes.post('/admin/users/assign-custom-plan', adminController.assignCustomPlanToUser);
+adminProtectedRoutes.get('/admin/payments', adminController.getPendingPayments);
+adminProtectedRoutes.get('/admin/payments/history', adminController.getPaymentHistory);
 adminProtectedRoutes.post('/admin/payments/:id/approve', adminController.approvePayment);
 adminProtectedRoutes.post('/admin/payments/:id/reject', adminController.rejectPayment);
-// Restantes rotas admin...
+adminProtectedRoutes.post('/admin/plans', adminController.createPlan);
+adminProtectedRoutes.put('/admin/plans/:id', adminController.editPlan);
+adminProtectedRoutes.get('/admin/bank-accounts', adminController.getBankAccounts);
+adminProtectedRoutes.post('/admin/bank-accounts', adminController.addBankAccount);
+adminProtectedRoutes.delete('/admin/bank-accounts/:id', adminController.deleteBankAccount);
+adminProtectedRoutes.post('/admin/global-message', adminController.sendGlobalEmail);
+adminProtectedRoutes.get('/admin/system-logs', adminController.getSystemLogs);
 
 router.use('/', adminProtectedRoutes);
 

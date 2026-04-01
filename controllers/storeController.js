@@ -2,7 +2,6 @@
 const prisma = require('../config/db');
 const { handleError } = require('../utils/helpers');
 
-// O Front-end fará GET /api/store/:storeName (onde :storeName é o subdomínio capturado no front)
 exports.getPublicStoreData = async (req, res) => {
     try {
         const { storeName } = req.params;
@@ -62,9 +61,33 @@ exports.getPublicProductData = async (req, res) => {
     }
 };
 
+// FUNÇÃO QUE FALTAVA
+exports.getPlans = async (req, res) => {
+    try {
+        const plans = await prisma.plan.findMany({ where: { isVisible: true }, orderBy: { price: 'asc' } });
+        res.status(200).json({ success: true, plans });
+    } catch (error) {
+        handleError(res, error, 'Erro ao carregar os planos.');
+    }
+};
+
+// FUNÇÃO QUE FALTAVA
+exports.logInteraction = async (req, res) => {
+    try {
+        const { storeOwnerId, type, details } = req.body;
+        if (!storeOwnerId || !type || !details) return res.status(400).json({ success: false, message: 'Dados insuficientes.' });
+        
+        await prisma.interaction.create({ data: { userId: storeOwnerId, type, details } });
+        res.status(200).json({ success: true, message: 'Interação registada.' });
+    } catch (error) {
+        console.error("Erro ao registar interação:", error);
+        res.status(200).json({ success: true, message: 'Interação não registada, mas a prosseguir.' });
+    }
+};
+
 exports.generateSitemap = async (req, res) => {
     try {
-        const mainDomain = 'https://bizno.store'; // Sem www para usar o domínio base
+        const mainDomain = 'https://bizno.store'; 
         
         let sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
         sitemapXml += `    <url><loc>${mainDomain}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n`;
@@ -75,7 +98,6 @@ exports.generateSitemap = async (req, res) => {
         });
         
         for (const user of users) {
-            // MUDANÇA PARA O SUBDOMÍNIO: https://nomedaloja.bizno.store
             const storeUrl = `https://${encodeURIComponent(user.storeName)}.bizno.store`;
             
             sitemapXml += `    <url><loc>${storeUrl}</loc><lastmod>${user.updatedAt.toISOString()}</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;

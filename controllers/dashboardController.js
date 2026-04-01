@@ -20,7 +20,7 @@ exports.getDashboardData = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
-                storeName: user.storeName, // Usado para montar https://{storeName}.bizno.store no Front-end
+                storeName: user.storeName,
                 currentPlan: user.plan?.name || 'N/A', 
                 planExpiresAt: user.planExpiresAt,
                 storageUsed: user.storageUsed,
@@ -65,9 +65,92 @@ exports.getDashboardChartData = async (req, res) => {
 };
 
 exports.getStatisticsData = async (req, res) => {
-    // Mantivemos a mesma lógica para as estatísticas detalhadas,
-    // garantindo que usa as funções otimizadas acima.
-    // (Omitido para poupar espaço, mas a estrutura é a mesma usando prisma.interaction e prisma.visit)
+    try {
+        const userId = req.user.id;
+        const { range, startDate, endDate } = req.query;
+
+        let start, end;
+        const today = new Date();
+        today.setUTCHours(23, 59, 59, 999);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        const todaysOrders = await prisma.interaction.count({ where: { userId, type: 'order', createdAt: { gte: new Date(new Date().setUTCHours(0,0,0,0)), lte: today } } });
+        const yesterdaysOrders = await prisma.interaction.count({ where: { userId, type: 'order', createdAt: { gte: new Date(yesterday).setUTCHours(0,0,0,0), lte: new Date(yesterday).setUTCHours(23,59,59,999) } } });
+
+        switch (range) {
+            case 'last30days':
+                end = new Date(today);
+                start = new Date(new Date().setDate(today.getDate() - 29));
+                start.setUTCHours(0, 0, 0, 0);
+                break;
+            case 'thisMonth':
+                end = new Date(today);
+                start = new Date(today.getFullYear(), today.getMonth(), 1);
+                break;
+            case 'lastMonth':
+                start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                end = new Date(today.getFullYear(), today.getMonth(), 0);
+                end.setUTCHours(23, 59, 59, 999);
+                break;
+            case 'custom':
+                if (!startDate || !endDate) return res.status(400).json({ success: false, message: 'Filtro personalizado requer datas.' });
+                start = new Date(startDate);
+                end = new Date(endDate);
+                end.setUTCHours(23, 59, 59, 999);
+                break;
+            default:
+                end = new Date(today);
+                start = new Date(new Date().setDate(today.getDate() - 6));
+                start.setUTCHours(0, 0, 0, 0);
+        }
+
+        const [orders, visits, topProducts] = await Promise.all([
+            prisma.interaction.findMany({ where: { userId, type: 'order', createdAt: { gte: start, lte: end } } }),
+            prisma.visit.findMany({ where: { userId, createdAt: { gte: start, lte: end } } }),
+            prisma.product.findMany({ 
+                where: { userId }, 
+                orderBy: { viewCount: 'desc' }, 
+                take: 5,
+                select: { name: true, viewCount: true, images: true }
+            })
+        ]);
+
+        const ordersMap = orders.reduce((acc, order) => {
+            const dateStr = order.createdAt.toISOString().split('T')[0];
+            acc[dateStr] = (acc[dateStr] || 0) + 1;
+            return acc;
+        }, {});
+
+        const visitsMap = visits.reduce((acc, visit) => {
+            const dateStr = visit.createdAt.toISOString().split('T')[0];
+            acc[dateStr] = (acc[dateStr] || 0) + 1;
+            return acc;
+        }, {});
+
+        const chartData = [];
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateString = d.toISOString().split('T')[0];
+            chartData.push({
+                date: dateString,
+                orders: ordersMap[dateString] || 0,
+                visits: visitsMap[dateString] || 0
+            });
+        }
+        
+        const totalVisitsInRange = chartData.reduce((sum, item) => sum + item.visits, 0);
+        const totalOrdersInRange = chartData.reduce((sum, item) => sum + item.orders, 0);
+        const conversionRate = totalVisitsInRange > 0 ? ((totalOrdersInRange / totalVisitsInRange) * 100).toFixed(2) : 0;
+        
+        res.status(200).json({
+            success: true,
+            kpis: {
+                todaysOrders, yesterdaysOrders, totalVisits: totalVisitsInRange, totalOrders: totalOrdersInRange, conversionRate: `${conversionRate}%`
+            },
+            chartData, topProducts
+        });
+
+    } catch (error) { handleError(res, error, 'Erro ao carregar dados de estatísticas.'); }
 };
 
 exports.getOrders = async (req, res) => {
