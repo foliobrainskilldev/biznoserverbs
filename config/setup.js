@@ -3,19 +3,11 @@ require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const prisma = require('./db');
 
-// Lógica inteligente para as variáveis de ambiente do Frontend
+// Lê o frontend URL estritamente do ENV
 const rawFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-
-// 1. Trata os domínios do CORS
 const corsOrigins = rawFrontendUrl.trim() === '*' 
     ? '*' 
     : rawFrontendUrl.split(',').map(u => u.trim());
-
-// 2. Extrai um URL seguro para gerar links de e-mails e PaySuite
-// Se for '*', fazemos fallback para o domínio principal da Bizno
-const mainFrontendUrl = Array.isArray(corsOrigins) && corsOrigins[0] !== '*' 
-    ? corsOrigins[0] 
-    : 'https://bizno.store';
 
 const config = {
     port: process.env.PORT || 3000,
@@ -31,13 +23,19 @@ const config = {
         api_secret: process.env.CLOUDINARY_API_SECRET,
     },
     
-    // Novas variáveis exportadas para o sistema
+    // Variáveis restritas do CORS
     corsOrigins: corsOrigins,
-    mainFrontendUrl: mainFrontendUrl,
     
+    // Configurações exatas da PaySuite e URLs sugeridas
     paysuite: {
-        apiUrl: process.env.PAYSUITE_API_URL || 'https://paysuite.tech/api/v1',
-        token: process.env.PAYSUITE_API_TOKEN
+        apiUrl: process.env.PAYSUITE_API_BASE_URL || 'https://paysuite.tech/api/v1',
+        token: process.env.PAYSUITE_API_TOKEN,
+        webhookSecret: process.env.PAYSUITE_WEBHOOK_SECRET
+    },
+    urls: {
+        appUrl: process.env.APP_URL,
+        paymentReturnUrl: process.env.PAYMENT_RETURN_URL,
+        paymentCallbackUrl: process.env.PAYMENT_CALLBACK_URL
     }
 };
 

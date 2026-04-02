@@ -10,31 +10,26 @@ const app = express();
 
 const corsOptions = {
     origin: function (origin, callback) {
-        // Permite ferramentas como Postman e requests server-to-server que não enviam origin
+        // Permite ferramentas como Postman e requests server-to-server
         if (!origin) return callback(null, true);
 
-        // 1. REGRAS PRINCIPAIS (Vindas do ENV)
+        // Se o ENV estiver definido com '*', permite tudo
         if (config.corsOrigins === '*') {
-            return callback(null, true); // Aceita tráfego de qualquer origem
+            return callback(null, true);
         }
 
+        // Validação Estrita via Variável de Ambiente
         const isEnvAllowed = Array.isArray(config.corsOrigins) && config.corsOrigins.includes(origin);
 
-        // 2. REGRAS OPCIONAIS / FALLBACKS (Vindas do código)
-        const isFallbackAllowed = 
-            origin.endsWith('.bizno.store') || 
-            origin === 'https://bizno.store' ||
-            origin.endsWith('.vercel.app') || 
-            origin.includes('localhost');
-
-        // Validação Final
-        if (isEnvAllowed || isFallbackAllowed) {
+        if (isEnvAllowed) {
             callback(null, true);
         } else {
+            console.error(`[CORS BLOQUEADO] Origem não autorizada: ${origin}`);
             callback(new Error('Acesso não permitido pelas políticas de CORS'));
         }
     },
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    credentials: true // Importante para requisições com headers de auth em alguns frontends
 };
 
 app.use(cors(corsOptions));
@@ -61,7 +56,7 @@ prisma.$connect()
         
         app.listen(config.port, () => {
             console.log(`Servidor Bizno a correr na porta ${config.port}`);
-            console.log(`Configuração CORS ativa: Principal (${config.corsOrigins}) + Opcionais (*.bizno.store, etc.)`);
+            console.log(`Configuração CORS ativa restrita ao ENV:`, config.corsOrigins);
         });
     })
     .catch(err => {

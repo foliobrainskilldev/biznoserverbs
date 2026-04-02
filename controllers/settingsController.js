@@ -229,34 +229,39 @@ exports.initiatePlanPayment = async (req, res) => {
     if (!planId || !provider) {
         return res.status(400).json({ success: false, message: 'ID do plano e provedor são obrigatórios.' });
     }
+
+    const validProviders = ['mpesa', 'emola', 'credit_card'];
+    if (!validProviders.includes(provider.toLowerCase())) {
+        return res.status(400).json({ success: false, message: `Método de pagamento inválido. Escolha entre: ${validProviders.join(', ')}` });
+    }
     
     try {
         const plan = await prisma.plan.findUnique({ where: { id: planId } });
         if(!plan) return res.status(404).json({ success: false, message: 'Plano não encontrado.' });
         
         // Referência única da fatura na Bizno
-        const internalReference = `BIZNO-${req.user.id.substring(0, 4)}-${Date.now()}`;
-        const description = `Subscrição do Plano ${plan.name} - Loja: ${req.user.storeName}`;
+        const internalReference = `BIZ-${req.user.id.substring(0, 4)}-${Date.now()}`;
+        const description = `Plano ${plan.name} - ${req.user.storeName}`;
 
-        // URL de retorno dinâmico baseado no setup do sistema (garante que não usa asterisco)
-        const returnUrl = `${config.mainFrontendUrl}/dash/pagamento-sucesso.html`; 
+        // URL gerado dinamicamente caso não exista no ENV (usando config.urls)
+        const returnUrl = config.urls.paymentReturnUrl || `${config.urls.appUrl}/dash/pagamento-sucesso.html`; 
 
         const paysuiteResponse = await paysuiteService.createPaymentRequest(
             plan.price,
             internalReference,
             description,
-            provider.toLowerCase(), // 'mpesa', 'emola', 'credit_card'
+            provider.toLowerCase(),
             returnUrl
         );
         
-        // Guarda o pagamento no banco de dados com a referência (id) da PaySuite
+        // Guarda o pagamento no banco de dados
         await prisma.payment.create({
             data: {
                 userId: req.user.id,
                 planId: planId,
                 status: 'pending',
                 provider: provider.toLowerCase(),
-                gatewayReference: paysuiteResponse.data.id, // Guardar o ID gerado pela PaySuite
+                gatewayReference: paysuiteResponse.data.id, // O ID devolvido pela PaySuite
                 proof: {}
             }
         });
@@ -273,7 +278,7 @@ exports.initiatePlanPayment = async (req, res) => {
 };
 
 // ===============================================
-// INTEGRAÇÃO PAYSUITE (Verificar Status)
+// INTEGRAÇÃO PAYSUITE (Verificar Status Manual)
 // ===============================================
 exports.verifyPaymentStatus = async (req, res) => {
     const { gatewayReference } = req.params;
@@ -290,12 +295,10 @@ exports.verifyPaymentStatus = async (req, res) => {
 
         // Consulta a API da PaySuite
         const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
-        
-        // A PaySuite retorna o status em data.status (ex: 'paid', 'pending', 'failed')
         const currentStatus = paysuiteStatus.data.status;
 
         if (currentStatus === 'paid') {
-            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // +30 dias
+            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
             
             await prisma.$transaction([
                 prisma.user.update({ 
