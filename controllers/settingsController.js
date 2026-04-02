@@ -238,9 +238,8 @@ exports.initiatePlanPayment = async (req, res) => {
         const internalReference = `BIZNO-${req.user.id.substring(0, 4)}-${Date.now()}`;
         const description = `Subscrição do Plano ${plan.name} - Loja: ${req.user.storeName}`;
 
-        // Definir a URL de retorno (para onde o gateway envia o user após pagar)
-        // Substitua por URL real do seu frontend onde faz a verificação
-        const returnUrl = `${config.frontendURL[0]}/dash/pagamento-sucesso.html`; 
+        // URL de retorno dinâmico baseado no setup do sistema (garante que não usa asterisco)
+        const returnUrl = `${config.mainFrontendUrl}/dash/pagamento-sucesso.html`; 
 
         const paysuiteResponse = await paysuiteService.createPaymentRequest(
             plan.price,

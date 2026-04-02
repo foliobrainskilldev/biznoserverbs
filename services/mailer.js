@@ -101,7 +101,7 @@ const sendPaymentApprovedEmail = async (to, storeName, planName) => {
         `Pagamento Aprovado! Seu Plano ${planName} está Ativo`,
         'Pagamento Confirmado!',
         `<p>O seu pagamento foi aprovado! O seu plano <strong>${planName}</strong> já está ativo.</p>`,
-        { text: 'Acessar Dashboard', url: `${config.frontendURL}/dash/dashboard.html` }
+        { text: 'Acessar Dashboard', url: `${config.mainFrontendUrl}/dash/dashboard.html` }
     );
     await sendEmail(to, `Pagamento Aprovado! Seu Plano ${planName} está Ativo`, html);
 };
@@ -110,9 +110,9 @@ const sendPaymentRejectedEmail = async (to, storeName, reason) => {
     const html = createEmailTemplate(
         'Problema no Pagamento - Bizno',
         'Pagamento Recusado',
-        `<p>O seu comprovativo foi recusado pelo motivo:</p>
+        `<p>O seu comprovativo ou transação foi recusado pelo motivo:</p>
          <p style="padding: 10px; background-color: #f9e3e3; border-left: 4px solid #d9534f; color: #d9534f;"><strong>${reason || 'Não especificado.'}</strong></p>`,
-        { text: 'Enviar Novo Comprovativo', url: `${config.frontendURL}/pay/planos.html` }
+        { text: 'Tentar Novamente', url: `${config.mainFrontendUrl}/dash/planos.html` }
     );
     await sendEmail(to, 'Problema no Pagamento - Bizno', html);
 };

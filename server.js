@@ -10,16 +10,28 @@ const app = express();
 
 const corsOptions = {
     origin: function (origin, callback) {
+        // Permite ferramentas como Postman e requests server-to-server que não enviam origin
         if (!origin) return callback(null, true);
-        if (
+
+        // 1. REGRAS PRINCIPAIS (Vindas do ENV)
+        if (config.corsOrigins === '*') {
+            return callback(null, true); // Aceita tráfego de qualquer origem
+        }
+
+        const isEnvAllowed = Array.isArray(config.corsOrigins) && config.corsOrigins.includes(origin);
+
+        // 2. REGRAS OPCIONAIS / FALLBACKS (Vindas do código)
+        const isFallbackAllowed = 
             origin.endsWith('.bizno.store') || 
             origin === 'https://bizno.store' ||
             origin.endsWith('.vercel.app') || 
-            origin.includes('localhost')
-        ) {
+            origin.includes('localhost');
+
+        // Validação Final
+        if (isEnvAllowed || isFallbackAllowed) {
             callback(null, true);
         } else {
-            callback(new Error('Não permitido pelo CORS'));
+            callback(new Error('Acesso não permitido pelas políticas de CORS'));
         }
     },
     optionsSuccessStatus: 200
@@ -28,9 +40,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(helmet());
 
-// --- MUDANÇA IMPORTANTE AQUI ---
-// Guardamos o corpo puro do pedido (raw body) apenas para a rota do webhook.
-// Isto é obrigatório para validar a segurança da PaySuite.
+// Guardamos o rawBody apenas para a validação da assinatura da PaySuite
 app.use(express.json({
     verify: (req, res, buf) => {
         if (req.originalUrl.includes('/webhooks/paysuite')) {
@@ -51,7 +61,7 @@ prisma.$connect()
         
         app.listen(config.port, () => {
             console.log(`Servidor Bizno a correr na porta ${config.port}`);
-            console.log(`CORS configurado para subdomínios *.bizno.store e Vercel.`);
+            console.log(`Configuração CORS ativa: Principal (${config.corsOrigins}) + Opcionais (*.bizno.store, etc.)`);
         });
     })
     .catch(err => {

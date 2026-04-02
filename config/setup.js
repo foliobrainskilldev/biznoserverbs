@@ -3,6 +3,20 @@ require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const prisma = require('./db');
 
+// Lógica inteligente para as variáveis de ambiente do Frontend
+const rawFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+// 1. Trata os domínios do CORS
+const corsOrigins = rawFrontendUrl.trim() === '*' 
+    ? '*' 
+    : rawFrontendUrl.split(',').map(u => u.trim());
+
+// 2. Extrai um URL seguro para gerar links de e-mails e PaySuite
+// Se for '*', fazemos fallback para o domínio principal da Bizno
+const mainFrontendUrl = Array.isArray(corsOrigins) && corsOrigins[0] !== '*' 
+    ? corsOrigins[0] 
+    : 'https://bizno.store';
+
 const config = {
     port: process.env.PORT || 3000,
     jwtSecret: process.env.JWT_SECRET,
@@ -16,9 +30,11 @@ const config = {
         api_key: process.env.CLOUDINARY_API_KEY,
         api_secret: process.env.CLOUDINARY_API_SECRET,
     },
-    frontendURL: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : 'http://localhost:3000',
     
-    // Configurações do Gateway PaySuite
+    // Novas variáveis exportadas para o sistema
+    corsOrigins: corsOrigins,
+    mainFrontendUrl: mainFrontendUrl,
+    
     paysuite: {
         apiUrl: process.env.PAYSUITE_API_URL || 'https://paysuite.tech/api/v1',
         token: process.env.PAYSUITE_API_TOKEN
@@ -49,35 +65,21 @@ const initializeDefaults = async () => {
                         deliverySettings: {}
                     }
                 });
-                console.log('Conta de administrador padrão criada com sucesso no PostgreSQL.');
+                console.log('Conta de administrador padrão criada com sucesso.');
             }
         }
 
         const planCount = await prisma.plan.count();
         if (planCount === 0) {
             const defaultPlans = [
-                {
-                    name: 'Free', price: 0, productLimit: 5, imageLimitPerProduct: 1, videoLimit: 0, categoriesLimit: -1,
-                    hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'faqs', isVisible: true,
-                },
-                {
-                    name: 'Starter', price: 500, productLimit: 50, imageLimitPerProduct: 3, videoLimit: 0, categoriesLimit: -1,
-                    hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: false, hasSupport: 'basic', isVisible: true,
-                },
-                {
-                    name: 'Business', price: 1200, productLimit: 200, imageLimitPerProduct: 10, videoLimit: 30, categoriesLimit: -1,
-                    hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'priority', hasPromotionTimer: true, isVisible: true,
-                },
-                 {
-                    name: 'Personalizado', price: 0, productLimit: -1, imageLimitPerProduct: -1, videoLimit: -1, categoriesLimit: -1,
-                    hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'dedicated', hasPromotionTimer: true, isCustom: true, isVisible: true,
-                }
+                { name: 'Free', price: 0, productLimit: 5, imageLimitPerProduct: 1, videoLimit: 0, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'faqs', isVisible: true },
+                { name: 'Starter', price: 500, productLimit: 50, imageLimitPerProduct: 3, videoLimit: 0, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: false, hasSupport: 'basic', isVisible: true },
+                { name: 'Business', price: 1200, productLimit: 200, imageLimitPerProduct: 10, videoLimit: 30, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'priority', hasPromotionTimer: true, isVisible: true },
+                { name: 'Personalizado', price: 0, productLimit: -1, imageLimitPerProduct: -1, videoLimit: -1, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'dedicated', hasPromotionTimer: true, isCustom: true, isVisible: true }
             ];
-
             await prisma.plan.createMany({ data: defaultPlans });
-            console.log('Planos padrão criados com sucesso no PostgreSQL.');
+            console.log('Planos padrão criados com sucesso.');
         }
-
     } catch (error) {
         console.error('Erro ao inicializar o Admin ou Planos:', error.message);
         throw error;
