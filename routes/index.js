@@ -11,6 +11,7 @@ const dashboardController = require('../controllers/dashboardController');
 const productController = require('../controllers/productController');
 const settingsController = require('../controllers/settingsController');
 const adminController = require('../controllers/adminController');
+const webhookController = require('../controllers/webhookController'); // <-- NOVO
 
 // Importação de Middlewares
 const { verifyUserToken, verifyAdminToken, checkPlanStatus } = require('../middlewares/authMiddleware');
@@ -26,6 +27,9 @@ router.post('/resend-verification', emailRules(), validate, emailLimiter, authCo
 router.post('/forgot-password', emailRules(), validate, emailLimiter, authController.forgotPassword);
 router.post('/reset-password', resetPasswordRules(), validate, authController.resetPassword);
 
+// --> ROTA DO WEBHOOK DA PAYSUITE <--
+router.post('/webhooks/paysuite', webhookController.handlePaysuiteWebhook);
+
 // ==========================================
 // 2. ROTAS PÚBLICAS DA LOJA (USADAS PELO SUBDOMÍNIO)
 // ==========================================
@@ -34,7 +38,7 @@ router.get('/product/:productId', storeController.getPublicProductData);
 router.get('/plans', storeController.getPlans); 
 router.post('/interaction', storeController.logInteraction);
 router.get('/sitemap.xml', storeController.generateSitemap);
-router.get('/bank-accounts', adminController.getBankAccounts); // Público para página de planos
+router.get('/bank-accounts', adminController.getBankAccounts);
 
 // ==========================================
 // 3. ROTAS DO PAINEL DO UTILIZADOR
@@ -74,7 +78,11 @@ userProtectedRoutes.get('/media', settingsController.getMedia);
 userProtectedRoutes.delete('/media/:asset_id', checkPlanStatus, settingsController.deleteMedia);
 userProtectedRoutes.get('/contacts', settingsController.getContacts);
 userProtectedRoutes.post('/contacts', checkPlanStatus, settingsController.updateContacts);
-userProtectedRoutes.post('/payment/upload', checkPlanStatus, upload.single('proof'), settingsController.uploadPaymentProof);
+
+// Rotas de Pagamento Automático via PaySuite
+userProtectedRoutes.post('/payment/initiate', settingsController.initiatePlanPayment);
+userProtectedRoutes.get('/payment/verify/:gatewayReference', settingsController.verifyPaymentStatus);
+
 userProtectedRoutes.get('/my-plan', settingsController.getCurrentPlan);
 userProtectedRoutes.get('/payment/history', settingsController.getPaymentHistory);
 

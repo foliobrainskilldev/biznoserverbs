@@ -3,6 +3,8 @@ const prisma = require('../config/db');
 const { handleError, sanitizeStoreNameForURL } = require('../utils/helpers');
 const cloudinary = require('cloudinary').v2;
 const { config } = require('../config/setup');
+const paysuiteService = require('../services/paysuiteService');
+const mailer = require('../services/mailer');
 
 cloudinary.config(config.cloudinary);
 
@@ -37,13 +39,11 @@ exports.updateAccountInfo = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Campos obrigatórios em falta.' });
         }
 
-        // Esta linha é crucial para o subdomínio funcionar de forma limpa
         const urlFriendlyStoreName = sanitizeStoreNameForURL(storeName);
         if (!urlFriendlyStoreName) {
             return res.status(400).json({ success: false, message: 'Nome da loja inválido.' });
         }
 
-        // Verifica se outra loja já está a usar este subdomínio
         if (urlFriendlyStoreName !== req.user.storeName) {
             const existingStore = await prisma.user.findFirst({ where: { storeName: urlFriendlyStoreName } });
             if (existingStore) {
@@ -220,29 +220,110 @@ exports.updateContacts = async (req, res) => {
     }
 };
 
-exports.uploadPaymentProof = async (req, res) => {
-    const { planId } = req.body;
-    if (!req.file || !planId) return res.status(400).json({ success: false, message: 'ID do plano e comprovativo são obrigatórios.' });
+// ===============================================
+// INTEGRAÇÃO PAYSUITE (Criar Pagamento)
+// ===============================================
+exports.initiatePlanPayment = async (req, res) => {
+    const { planId, provider } = req.body; 
+    
+    if (!planId || !provider) {
+        return res.status(400).json({ success: false, message: 'ID do plano e provedor são obrigatórios.' });
+    }
     
     try {
         const plan = await prisma.plan.findUnique({ where: { id: planId } });
         if(!plan) return res.status(404).json({ success: false, message: 'Plano não encontrado.' });
         
-        const uploadResult = await cloudinary.uploader.upload(req.file.path, { folder: `bizno/proofs` });
+        // Referência única da fatura na Bizno
+        const internalReference = `BIZNO-${req.user.id.substring(0, 4)}-${Date.now()}`;
+        const description = `Subscrição do Plano ${plan.name} - Loja: ${req.user.storeName}`;
+
+        // Definir a URL de retorno (para onde o gateway envia o user após pagar)
+        // Substitua por URL real do seu frontend onde faz a verificação
+        const returnUrl = `${config.frontendURL[0]}/dash/pagamento-sucesso.html`; 
+
+        const paysuiteResponse = await paysuiteService.createPaymentRequest(
+            plan.price,
+            internalReference,
+            description,
+            provider.toLowerCase(), // 'mpesa', 'emola', 'credit_card'
+            returnUrl
+        );
         
+        // Guarda o pagamento no banco de dados com a referência (id) da PaySuite
         await prisma.payment.create({
             data: {
                 userId: req.user.id,
                 planId: planId,
-                proof: { url: uploadResult.secure_url, public_id: uploadResult.public_id }
+                status: 'pending',
+                provider: provider.toLowerCase(),
+                gatewayReference: paysuiteResponse.data.id, // Guardar o ID gerado pela PaySuite
+                proof: {}
             }
         });
         
-        await prisma.user.update({ where: { id: req.user.id }, data: { planStatus: 'pending' } });
-        
-        res.status(200).json({ success: true, message: 'Comprovativo enviado e em análise.' });
+        res.status(200).json({ 
+            success: true, 
+            message: 'Redirecionando para o portal de pagamento...',
+            checkoutUrl: paysuiteResponse.data.checkout_url,
+            reference: paysuiteResponse.data.id
+        });
     } catch (error) {
-        handleError(res, error, 'Erro ao enviar comprovativo.');
+        handleError(res, error, 'Erro ao iniciar o pagamento via PaySuite.');
+    }
+};
+
+// ===============================================
+// INTEGRAÇÃO PAYSUITE (Verificar Status)
+// ===============================================
+exports.verifyPaymentStatus = async (req, res) => {
+    const { gatewayReference } = req.params;
+
+    try {
+        const payment = await prisma.payment.findUnique({ 
+            where: { gatewayReference: gatewayReference },
+            include: { plan: true, user: true } 
+        });
+
+        if (!payment) return res.status(404).json({ success: false, message: 'Pagamento não encontrado no nosso sistema.' });
+        if (payment.userId !== req.user.id) return res.status(403).json({ success: false, message: 'Acesso negado.' });
+        if (payment.status === 'approved') return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento já processado e aprovado.' });
+
+        // Consulta a API da PaySuite
+        const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
+        
+        // A PaySuite retorna o status em data.status (ex: 'paid', 'pending', 'failed')
+        const currentStatus = paysuiteStatus.data.status;
+
+        if (currentStatus === 'paid') {
+            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // +30 dias
+            
+            await prisma.$transaction([
+                prisma.user.update({ 
+                    where: { id: payment.userId }, 
+                    data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt } 
+                }),
+                prisma.payment.update({ 
+                    where: { id: payment.id }, 
+                    data: { status: 'approved' } 
+                })
+            ]);
+
+            await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
+            return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento concluído e plano ativado!' });
+        
+        } else if (currentStatus === 'failed' || currentStatus === 'cancelled') {
+            await prisma.payment.update({ 
+                where: { id: payment.id }, 
+                data: { status: 'rejected', rejectionReason: 'Cancelado ou falhou no Gateway.' } 
+            });
+            return res.status(200).json({ success: true, status: 'rejected', message: 'O pagamento falhou ou foi cancelado.' });
+        }
+
+        res.status(200).json({ success: true, status: 'pending', message: 'Pagamento ainda pendente.' });
+
+    } catch (error) {
+        handleError(res, error, 'Erro ao verificar estado do pagamento.');
     }
 };
 

@@ -1,3 +1,4 @@
+// Ficheiro: src/config/setup.js
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const prisma = require('./db');
@@ -16,6 +17,12 @@ const config = {
         api_secret: process.env.CLOUDINARY_API_SECRET,
     },
     frontendURL: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : 'http://localhost:3000',
+    
+    // Configurações do Gateway PaySuite
+    paysuite: {
+        apiUrl: process.env.PAYSUITE_API_URL || 'https://paysuite.tech/api/v1',
+        token: process.env.PAYSUITE_API_TOKEN
+    }
 };
 
 const initializeDefaults = async () => {

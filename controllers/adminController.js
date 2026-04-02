@@ -119,7 +119,7 @@ exports.approvePayment = async (req, res) => {
         ]);
         
         await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
-        res.status(200).json({ success: true, message: 'Pagamento aprovado e plano ativado.' });
+        res.status(200).json({ success: true, message: 'Pagamento aprovado e plano ativado manualmente.' });
     } catch (error) {
         handleError(res, error, 'Erro ao aprovar pagamento.');
     }
@@ -141,7 +141,7 @@ exports.rejectPayment = async (req, res) => {
         ]);
 
         await mailer.sendPaymentRejectedEmail(payment.user.email, payment.user.storeName, reason);
-        res.status(200).json({ success: true, message: 'Pagamento recusado.' });
+        res.status(200).json({ success: true, message: 'Pagamento recusado manualmente.' });
     } catch (error) {
         handleError(res, error, 'Erro ao recusar pagamento.');
     }

@@ -1,3 +1,5 @@
+// Ficheiro: prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -118,20 +120,25 @@ model Product {
 }
 
 model Payment {
-  id              String        @id @default(uuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planId          String
-  plan            Plan          @relation(fields: [planId], references: [id], onDelete: Cascade)
-  proof           Json          // Formato: {url, public_id}
-  status          PaymentStatus @default(pending)
-  rejectionReason String?
+  id               String        @id @default(uuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId           String
+  plan             Plan          @relation(fields: [planId], references: [id], onDelete: Cascade)
   
-  processedById   String?
-  processedBy     User?         @relation("ProcessedPayments", fields: [processedById], references: [id], onDelete: SetNull)
+  // ---> Alterações para o Gateway PaySuite <---
+  proof            Json?         // Agora é opcional, pois o pagamento é automático
+  gatewayReference String?       @unique // ID gerado e retornado pela PaySuite
+  provider         String?       // 'mpesa', 'emola', ou 'credit_card'
+  
+  status           PaymentStatus @default(pending)
+  rejectionReason  String?
+  
+  processedById    String?
+  processedBy      User?         @relation("ProcessedPayments", fields: [processedById], references: [id], onDelete: SetNull)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model BankAccount {

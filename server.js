@@ -8,7 +8,6 @@ const { config, initializeDefaults } = require('./config/setup');
 
 const app = express();
 
-// Configuração CORS para permitir subdomínios (*.bizno.store)
 const corsOptions = {
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
@@ -28,10 +27,19 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(helmet());
-app.use(express.json());
+
+// --- MUDANÇA IMPORTANTE AQUI ---
+// Guardamos o corpo puro do pedido (raw body) apenas para a rota do webhook.
+// Isto é obrigatório para validar a segurança da PaySuite.
+app.use(express.json({
+    verify: (req, res, buf) => {
+        if (req.originalUrl.includes('/webhooks/paysuite')) {
+            req.rawBody = buf.toString();
+        }
+    }
+}));
 app.use(express.urlencoded({ extended: true }));
 
-// Todas as rotas agora passarão pelo index de rotas
 app.use('/api', routes);
 
 console.log('A ligar ao PostgreSQL...');
