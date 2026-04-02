@@ -273,7 +273,12 @@ exports.initiatePlanPayment = async (req, res) => {
             reference: paysuiteResponse.data.id
         });
     } catch (error) {
-        handleError(res, error, 'Erro ao iniciar o pagamento via PaySuite.');
+        // 🔥 MODIFICAÇÃO AQUI: DEVOLVE O ERRO EXATO DA API PARA O FRONTEND
+        console.error('[ERRO_DETALHADO_PAYSUITE]:', error.message);
+        return res.status(400).json({ 
+            success: false, 
+            message: `Erro PaySuite: ${error.message}` 
+        });
     }
 };
 
