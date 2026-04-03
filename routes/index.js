@@ -11,7 +11,7 @@ const dashboardController = require('../controllers/dashboardController');
 const productController = require('../controllers/productController');
 const settingsController = require('../controllers/settingsController');
 const adminController = require('../controllers/adminController');
-const webhookController = require('../controllers/webhookController'); // <-- NOVO
+const webhookController = require('../controllers/webhookController'); 
 
 // Importação de Middlewares
 const { verifyUserToken, verifyAdminToken, checkPlanStatus } = require('../middlewares/authMiddleware');
@@ -27,11 +27,11 @@ router.post('/resend-verification', emailRules(), validate, emailLimiter, authCo
 router.post('/forgot-password', emailRules(), validate, emailLimiter, authController.forgotPassword);
 router.post('/reset-password', resetPasswordRules(), validate, authController.resetPassword);
 
-// --> ROTA DO WEBHOOK DA PAYSUITE <--
+// Rota do Webhook da PaySuite
 router.post('/webhooks/paysuite', webhookController.handlePaysuiteWebhook);
 
 // ==========================================
-// 2. ROTAS PÚBLICAS DA LOJA (USADAS PELO SUBDOMÍNIO)
+// 2. ROTAS PÚBLICAS DA LOJA
 // ==========================================
 router.get('/store/:storeName', storeController.getPublicStoreData);
 router.get('/product/:productId', storeController.getPublicProductData);
@@ -41,7 +41,13 @@ router.get('/sitemap.xml', storeController.generateSitemap);
 router.get('/bank-accounts', adminController.getBankAccounts);
 
 // ==========================================
-// 3. ROTAS DO PAINEL DO UTILIZADOR
+// 3. LOGIN DO ADMIN (MOVIDO PARA AQUI EM CIMA!)
+// Assim não sofre bloqueio do verificador de utilizadores
+// ==========================================
+router.post('/admin/login', adminController.loginAdmin); 
+
+// ==========================================
+// 4. ROTAS DO PAINEL DO UTILIZADOR
 // ==========================================
 const userProtectedRoutes = express.Router();
 userProtectedRoutes.use(verifyUserToken);
@@ -79,20 +85,18 @@ userProtectedRoutes.delete('/media/:asset_id', checkPlanStatus, settingsControll
 userProtectedRoutes.get('/contacts', settingsController.getContacts);
 userProtectedRoutes.post('/contacts', checkPlanStatus, settingsController.updateContacts);
 
-// Rotas de Pagamento Automático via PaySuite
+// Pagamento Automático
 userProtectedRoutes.post('/payment/initiate', settingsController.initiatePlanPayment);
 userProtectedRoutes.get('/payment/verify/:gatewayReference', settingsController.verifyPaymentStatus);
-
 userProtectedRoutes.get('/my-plan', settingsController.getCurrentPlan);
 userProtectedRoutes.get('/payment/history', settingsController.getPaymentHistory);
 
 router.use('/', userProtectedRoutes);
 
 // ==========================================
-// 4. ROTAS DE ADMINISTRADOR
+// 5. ROTAS DE ADMINISTRADOR (PROTEGIDAS)
 // ==========================================
 const adminProtectedRoutes = express.Router();
-router.post('/admin/login', adminController.loginAdmin); 
 adminProtectedRoutes.use(verifyAdminToken);
 
 adminProtectedRoutes.get('/admin/dashboard', adminController.getAdminDashboard);
