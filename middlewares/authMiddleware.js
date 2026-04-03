@@ -32,10 +32,7 @@ const verifyToken = async (req, res, next, requiredRole) => {
              return res.status(403).json({ success: false, message: 'Acesso proibido. Permissões insuficientes.' });
         }
         
-        if (user.role === 'user' && !user.isVerified) {
-            return res.status(403).json({ success: false, message: 'Conta não verificada. Por favor, confirme o seu e-mail.' });
-        }
-
+        // BLOQUEIO REMOVIDO: Agora o utilizador pode aceder ao Dashboard mesmo com isVerified = false
         req.user = user;
         next();
 
@@ -50,9 +47,6 @@ const verifyToken = async (req, res, next, requiredRole) => {
 const verifyUserToken = (req, res, next) => verifyToken(req, res, next);
 const verifyAdminToken = (req, res, next) => verifyToken(req, res, next, 'admin');
 
-/**
- * Verifica se o plano do utilizador está ativo antes de permitir ações de escrita.
- */
 const checkPlanStatus = (req, res, next) => {
     if (req.method === 'GET') return next();
 

@@ -34,7 +34,8 @@ exports.registerUser = async (req, res) => {
         
         const hashedPassword = await bcrypt.hash(password, 12);
         const verificationCode = generateNumericCode().toString();
-        const verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
+        // Expira em 24h para dar tempo ao utilizador de clicar no botão do dashboard
+        const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); 
 
         const freePlan = await prisma.plan.findUnique({ where: { name: 'Free' } });
         
@@ -55,13 +56,18 @@ exports.registerUser = async (req, res) => {
             }
         });
 
-        await mailer.sendVerificationEmail(email, storeName, verificationCode);
-        res.status(201).json({ success: true, message: 'Conta criada! Código enviado por e-mail.' });
+        // NÃO ENVIAMOS O E-MAIL AQUI! O utilizador pede o e-mail no Dashboard.
+        
+        // Geramos o token para fazer login automático!
+        const token = jwt.sign({ id: newUser.id, role: newUser.role }, config.jwtSecret, { expiresIn: config.jwtExpiresIn });
+
+        res.status(201).json({ success: true, message: 'Conta criada com sucesso!', token, isVerified: false });
     } catch (error) {
         handleError(res, error, 'Erro ao registrar utilizador.');
     }
 };
 
+// ... Restante do ficheiro mantém-se igual (loginUser, verifyEmail, resendVerificationCode, etc)
 exports.loginUser = async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -110,7 +116,7 @@ exports.resendVerificationCode = async (req, res) => {
         const code = generateNumericCode().toString();
         await prisma.user.update({
             where: { id: user.id },
-            data: { verificationCode: code, verificationExpires: new Date(Date.now() + 10 * 60 * 1000) }
+            data: { verificationCode: code, verificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000) }
         });
         
         await mailer.sendVerificationEmail(user.email, user.displayName, code);
