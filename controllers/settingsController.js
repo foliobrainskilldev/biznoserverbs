@@ -296,13 +296,17 @@ exports.verifyPaymentStatus = async (req, res) => {
 
         // Consulta a API da PaySuite
         const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
-        const currentStatus = paysuiteStatus.data?.status || '';
+        
+        // Vamos extrair TUDO o que pudermos para descobrir o que eles enviam
+        const statusPrincipal = paysuiteStatus.status || '';
+        const statusData = paysuiteStatus.data?.status || '';
+        const currentStatus = statusData || statusPrincipal; 
 
-        // Tabela de status de sucesso abrangente do PaySuite
+        // Tabela de status de sucesso abrangente
         const successStatuses = ['paid', 'successful', 'completed', 'approved', 'success'];
         const failedStatuses = ['failed', 'cancelled', 'error', 'declined'];
 
-        if (successStatuses.includes(currentStatus.toLowerCase())) {
+        if (successStatuses.includes(String(currentStatus).toLowerCase())) {
             const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
             
             await prisma.$transaction([
@@ -319,7 +323,7 @@ exports.verifyPaymentStatus = async (req, res) => {
             await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
             return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento concluído e plano ativado!' });
         
-        } else if (failedStatuses.includes(currentStatus.toLowerCase())) {
+        } else if (failedStatuses.includes(String(currentStatus).toLowerCase())) {
             await prisma.payment.update({ 
                 where: { id: payment.id }, 
                 data: { status: 'rejected', rejectionReason: 'Cancelado ou falhou no Gateway.' } 
@@ -327,7 +331,12 @@ exports.verifyPaymentStatus = async (req, res) => {
             return res.status(200).json({ success: true, status: 'rejected', message: 'O pagamento falhou ou foi cancelado.' });
         }
 
-        res.status(200).json({ success: true, status: 'pending', message: 'Pagamento ainda pendente.' });
+        // MENSAGEM DETETIVE: Envia a palavra exata para o frontend
+        res.status(200).json({ 
+            success: true, 
+            status: 'pending', 
+            message: `O status na PaySuite é: "${currentStatus}".` 
+        });
 
     } catch (error) {
         handleError(res, error, 'Erro ao verificar estado do pagamento.');
