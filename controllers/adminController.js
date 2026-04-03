@@ -109,13 +109,20 @@ exports.getPendingPayments = async (req, res) => {
 exports.approvePayment = async (req, res) => {
     try {
         const payment = await prisma.payment.findUnique({ where: { id: req.params.id }, include: { plan: true, user: true } });
-        if (!payment || payment.status !== 'pending') return res.status(404).json({ success: false, message: 'Pagamento não encontrado.' });
+        if (!payment || payment.status !== 'pending') return res.status(404).json({ success: false, message: 'Pagamento não encontrado ou já processado.' });
+        if (!payment.planId) return res.status(400).json({ success: false, message: 'Este pagamento não tem um plano associado.' });
 
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
         
         await prisma.$transaction([
-            prisma.user.update({ where: { id: payment.userId }, data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt } }),
-            prisma.payment.update({ where: { id: payment.id }, data: { status: 'approved', processedById: req.user.id } })
+            prisma.user.update({ 
+                where: { id: payment.userId }, 
+                data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt } 
+            }),
+            prisma.payment.update({ 
+                where: { id: payment.id }, 
+                data: { status: 'approved', processedById: req.user.id } 
+            })
         ]);
         
         await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
@@ -133,7 +140,7 @@ exports.rejectPayment = async (req, res) => {
         const payment = await prisma.payment.findUnique({ where: { id: req.params.id }, include: { user: true } });
         if (!payment || payment.status !== 'pending') return res.status(404).json({ success: false, message: 'Pagamento não encontrado.' });
 
-        const newStatus = payment.user.planExpiresAt > new Date() ? 'active' : 'expired';
+        const newStatus = (payment.user.planExpiresAt && payment.user.planExpiresAt > new Date()) ? 'active' : 'expired';
         
         await prisma.$transaction([
             prisma.payment.update({ where: { id: payment.id }, data: { status: 'rejected', rejectionReason: reason, processedById: req.user.id } }),

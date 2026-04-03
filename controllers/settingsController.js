@@ -239,7 +239,6 @@ exports.initiatePlanPayment = async (req, res) => {
         const plan = await prisma.plan.findUnique({ where: { id: planId } });
         if(!plan) return res.status(404).json({ success: false, message: 'Plano não encontrado.' });
         
-        // 🔥 CORREÇÃO AQUI: Sem hifens, apenas letras e números
         const internalReference = `BIZ${req.user.id.substring(0, 4)}${Date.now()}`.toUpperCase();
         const description = `Plano ${plan.name} - ${req.user.storeName}`;
 
@@ -297,9 +296,13 @@ exports.verifyPaymentStatus = async (req, res) => {
 
         // Consulta a API da PaySuite
         const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
-        const currentStatus = paysuiteStatus.data.status;
+        const currentStatus = paysuiteStatus.data?.status || '';
 
-        if (currentStatus === 'paid') {
+        // Tabela de status de sucesso abrangente do PaySuite
+        const successStatuses = ['paid', 'successful', 'completed', 'approved', 'success'];
+        const failedStatuses = ['failed', 'cancelled', 'error', 'declined'];
+
+        if (successStatuses.includes(currentStatus.toLowerCase())) {
             const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
             
             await prisma.$transaction([
@@ -316,7 +319,7 @@ exports.verifyPaymentStatus = async (req, res) => {
             await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
             return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento concluído e plano ativado!' });
         
-        } else if (currentStatus === 'failed' || currentStatus === 'cancelled') {
+        } else if (failedStatuses.includes(currentStatus.toLowerCase())) {
             await prisma.payment.update({ 
                 where: { id: payment.id }, 
                 data: { status: 'rejected', rejectionReason: 'Cancelado ou falhou no Gateway.' } 
