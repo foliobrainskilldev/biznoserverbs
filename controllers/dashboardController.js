@@ -75,8 +75,21 @@ exports.getStatisticsData = async (req, res) => {
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
 
-        const todaysOrders = await prisma.interaction.count({ where: { userId, type: 'order', createdAt: { gte: new Date(new Date().setUTCHours(0,0,0,0)), lte: today } } });
-        const yesterdaysOrders = await prisma.interaction.count({ where: { userId, type: 'order', createdAt: { gte: new Date(yesterday).setUTCHours(0,0,0,0), lte: new Date(yesterday).setUTCHours(23,59,59,999) } } });
+        const todaysOrders = await prisma.interaction.count({ 
+            where: { userId, type: 'order', createdAt: { gte: new Date(new Date().setUTCHours(0,0,0,0)), lte: today } } 
+        });
+        
+        // CORREÇÃO APLICADA AQUI: Adicionado "new Date()" em volta das datas formatadas para não quebrar o Prisma
+        const yesterdaysOrders = await prisma.interaction.count({ 
+            where: { 
+                userId, 
+                type: 'order', 
+                createdAt: { 
+                    gte: new Date(new Date(yesterday).setUTCHours(0,0,0,0)), 
+                    lte: new Date(new Date(yesterday).setUTCHours(23,59,59,999)) 
+                } 
+            } 
+        });
 
         switch (range) {
             case 'last30days':
