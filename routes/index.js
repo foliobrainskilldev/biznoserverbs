@@ -27,12 +27,8 @@ router.post('/resend-verification', emailRules(), validate, emailLimiter, authCo
 router.post('/forgot-password', emailRules(), validate, emailLimiter, authController.forgotPassword);
 router.post('/reset-password', resetPasswordRules(), validate, authController.resetPassword);
 
-// Rota do Webhook da PaySuite
 router.post('/webhooks/paysuite', webhookController.handlePaysuiteWebhook);
 
-// ==========================================
-// 2. ROTAS PÚBLICAS DA LOJA
-// ==========================================
 router.get('/store/:storeName', storeController.getPublicStoreData);
 router.get('/product/:productId', storeController.getPublicProductData);
 router.get('/plans', storeController.getPlans); 
@@ -40,14 +36,41 @@ router.post('/interaction', storeController.logInteraction);
 router.get('/sitemap.xml', storeController.generateSitemap);
 router.get('/bank-accounts', adminController.getBankAccounts);
 
-// ==========================================
-// 3. LOGIN DO ADMIN (MOVIDO PARA AQUI EM CIMA!)
-// Assim não sofre bloqueio do verificador de utilizadores
-// ==========================================
+// ROTA DE LOGIN DO ADMIN ISOLADA
 router.post('/admin/login', adminController.loginAdmin); 
 
+
 // ==========================================
-// 4. ROTAS DO PAINEL DO UTILIZADOR
+// 2. ROTAS DE ADMINISTRADOR (PROTEGIDAS)
+// ==========================================
+const adminProtectedRoutes = express.Router();
+adminProtectedRoutes.use(verifyAdminToken);
+
+// Como vamos montar este router em '/admin', retiramos o '/admin' do início de cada rota aqui
+adminProtectedRoutes.get('/dashboard', adminController.getAdminDashboard);
+adminProtectedRoutes.get('/users', adminController.getAllUsers);
+adminProtectedRoutes.post('/users/:id/block', adminController.blockUser);
+adminProtectedRoutes.post('/users/:id/unblock', adminController.unblockUser);
+adminProtectedRoutes.post('/users/assign-plan', adminController.assignPlanToUser);
+adminProtectedRoutes.post('/users/assign-custom-plan', adminController.assignCustomPlanToUser);
+adminProtectedRoutes.get('/payments', adminController.getPendingPayments);
+adminProtectedRoutes.get('/payments/history', adminController.getPaymentHistory);
+adminProtectedRoutes.post('/payments/:id/approve', adminController.approvePayment);
+adminProtectedRoutes.post('/payments/:id/reject', adminController.rejectPayment);
+adminProtectedRoutes.post('/plans', adminController.createPlan);
+adminProtectedRoutes.put('/plans/:id', adminController.editPlan);
+adminProtectedRoutes.get('/bank-accounts', adminController.getBankAccounts);
+adminProtectedRoutes.post('/bank-accounts', adminController.addBankAccount);
+adminProtectedRoutes.delete('/bank-accounts/:id', adminController.deleteBankAccount);
+adminProtectedRoutes.post('/global-message', adminController.sendGlobalEmail);
+adminProtectedRoutes.get('/system-logs', adminController.getSystemLogs);
+
+// Montar as rotas de Admin ANTES das rotas de Utilizador
+router.use('/admin', adminProtectedRoutes);
+
+
+// ==========================================
+// 3. ROTAS DO PAINEL DO UTILIZADOR
 // ==========================================
 const userProtectedRoutes = express.Router();
 userProtectedRoutes.use(verifyUserToken);
@@ -92,31 +115,5 @@ userProtectedRoutes.get('/my-plan', settingsController.getCurrentPlan);
 userProtectedRoutes.get('/payment/history', settingsController.getPaymentHistory);
 
 router.use('/', userProtectedRoutes);
-
-// ==========================================
-// 5. ROTAS DE ADMINISTRADOR (PROTEGIDAS)
-// ==========================================
-const adminProtectedRoutes = express.Router();
-adminProtectedRoutes.use(verifyAdminToken);
-
-adminProtectedRoutes.get('/admin/dashboard', adminController.getAdminDashboard);
-adminProtectedRoutes.get('/admin/users', adminController.getAllUsers);
-adminProtectedRoutes.post('/admin/users/:id/block', adminController.blockUser);
-adminProtectedRoutes.post('/admin/users/:id/unblock', adminController.unblockUser);
-adminProtectedRoutes.post('/admin/users/assign-plan', adminController.assignPlanToUser);
-adminProtectedRoutes.post('/admin/users/assign-custom-plan', adminController.assignCustomPlanToUser);
-adminProtectedRoutes.get('/admin/payments', adminController.getPendingPayments);
-adminProtectedRoutes.get('/admin/payments/history', adminController.getPaymentHistory);
-adminProtectedRoutes.post('/admin/payments/:id/approve', adminController.approvePayment);
-adminProtectedRoutes.post('/admin/payments/:id/reject', adminController.rejectPayment);
-adminProtectedRoutes.post('/admin/plans', adminController.createPlan);
-adminProtectedRoutes.put('/admin/plans/:id', adminController.editPlan);
-adminProtectedRoutes.get('/admin/bank-accounts', adminController.getBankAccounts);
-adminProtectedRoutes.post('/admin/bank-accounts', adminController.addBankAccount);
-adminProtectedRoutes.delete('/admin/bank-accounts/:id', adminController.deleteBankAccount);
-adminProtectedRoutes.post('/admin/global-message', adminController.sendGlobalEmail);
-adminProtectedRoutes.get('/admin/system-logs', adminController.getSystemLogs);
-
-router.use('/', adminProtectedRoutes);
 
 module.exports = router;
