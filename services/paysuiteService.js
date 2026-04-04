@@ -7,15 +7,15 @@ const getHeaders = () => ({
     'Accept': 'application/json'
 });
 
-exports.createPaymentRequest = async (amount, reference, description, method, returnUrl) => {
+exports.createPaymentRequest = async (amount, reference, description, returnUrl) => {
     const endpoint = `${config.paysuite.apiUrl}/payments`;
     
-    // Payload estritamente de acordo com a documentação da PaySuite
+    // Deixamos o "method" de fora propositadamente. 
+    // Assim a PaySuite mostra todas as opções no seu próprio portal de Checkout.
     const payload = {
         amount: Number(amount),
         reference: reference,
         description: description,
-        method: method,
         return_url: returnUrl
     };
 
@@ -28,7 +28,6 @@ exports.createPaymentRequest = async (amount, reference, description, method, re
         
         const data = await response.json();
 
-        // LOG para sabermos o que a PaySuite reclamou caso falhe
         if (!response.ok || data.status === 'error') {
             console.error('[PAYSUITE_REJEITADO_DETALHES]:', JSON.stringify(data));
             throw new Error(data.message || `Erro da PaySuite: HTTP ${response.status}`);
@@ -42,7 +41,6 @@ exports.createPaymentRequest = async (amount, reference, description, method, re
 };
 
 exports.getPaymentStatus = async (paymentId) => {
-    // A documentação diz: GET api/v1/payments/{id}
     const endpoint = `${config.paysuite.apiUrl}/payments/${paymentId}`;
 
     try {

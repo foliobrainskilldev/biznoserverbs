@@ -246,15 +246,10 @@ exports.updateContacts = async (req, res) => {
 };
 
 exports.initiatePlanPayment = async (req, res) => {
-    const { planId, provider } = req.body; 
+    const { planId } = req.body; // Removemos a dependência do Provider (MPesa, Emola, etc.)
     
-    if (!planId || !provider) {
-        return res.status(400).json({ success: false, message: 'ID do plano e provedor são obrigatórios.' });
-    }
-
-    const validProviders = ['mpesa', 'emola', 'credit_card'];
-    if (!validProviders.includes(provider.toLowerCase())) {
-        return res.status(400).json({ success: false, message: `Método de pagamento inválido. Escolha entre: ${validProviders.join(', ')}` });
+    if (!planId) {
+        return res.status(400).json({ success: false, message: 'ID do plano é obrigatório.' });
     }
     
     try {
@@ -270,8 +265,7 @@ exports.initiatePlanPayment = async (req, res) => {
             plan.price,
             internalReference,
             description,
-            provider.toLowerCase(),
-            returnUrl
+            returnUrl // Não passamos método, a PaySuite cuida disso
         );
         
         await prisma.payment.create({
@@ -279,8 +273,8 @@ exports.initiatePlanPayment = async (req, res) => {
                 userId: req.user.id,
                 planId: planId,
                 status: 'pending',
-                provider: provider.toLowerCase(),
-                gatewayReference: paysuiteResponse.data.id, // O ID interno da transação na PaySuite
+                provider: 'paysuite_checkout', // Nome genérico do provedor
+                gatewayReference: paysuiteResponse.data.id,
                 proof: {}
             }
         });
@@ -293,10 +287,7 @@ exports.initiatePlanPayment = async (req, res) => {
         });
     } catch (error) {
         console.error('Erro PaySuite:', error.message);
-        return res.status(400).json({ 
-            success: false, 
-            message: `Erro PaySuite: ${error.message}` 
-        });
+        return res.status(400).json({ success: false, message: `Erro PaySuite: ${error.message}` });
     }
 };
 
@@ -309,22 +300,31 @@ exports.verifyPaymentStatus = async (req, res) => {
             include: { plan: true, user: true } 
         });
 
-        if (!payment) return res.status(404).json({ success: false, message: 'Pagamento não encontrado no nosso sistema.' });
+        if (!payment) return res.status(404).json({ success: false, message: 'Pagamento não encontrado no sistema.' });
         if (payment.userId !== req.user.id) return res.status(403).json({ success: false, message: 'Acesso negado.' });
         
         if (payment.status === 'approved') {
-            return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento já processado e aprovado.' });
+            return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento processado com sucesso.' });
         }
 
-        // Vai à PaySuite buscar o estado real da transação
         const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
         
-        // CORREÇÃO CRÍTICA: Lemos estritamente o "data.status", e ignoramos o wrapper "status: success"
-        const currentStatus = (paysuiteStatus.data && paysuiteStatus.data.status) 
-            ? String(paysuiteStatus.data.status).toLowerCase() 
-            : 'pending';
+        let currentStatus = 'pending';
+        let psError = 'Cancelado ou rejeitado pela operadora.';
 
-        const successStatuses = ['paid', 'completed']; // Apenas estados concretos de pagamento
+        if (paysuiteStatus.data && paysuiteStatus.data.status) {
+            currentStatus = String(paysuiteStatus.data.status).toLowerCase();
+        } else if (paysuiteStatus.status) {
+            currentStatus = String(paysuiteStatus.status).toLowerCase();
+        }
+
+        if (paysuiteStatus.data && paysuiteStatus.data.error) {
+            psError = paysuiteStatus.data.error;
+        } else if (paysuiteStatus.message) {
+            psError = paysuiteStatus.message;
+        }
+
+        const successStatuses = ['paid', 'completed', 'successful', 'success', 'approved']; 
         const failedStatuses = ['failed', 'cancelled', 'error', 'declined'];
 
         if (successStatuses.includes(currentStatus)) {
@@ -347,16 +347,15 @@ exports.verifyPaymentStatus = async (req, res) => {
         } else if (failedStatuses.includes(currentStatus)) {
             await prisma.payment.update({ 
                 where: { id: payment.id }, 
-                data: { status: 'rejected', rejectionReason: 'Cancelado ou falhou no Gateway.' } 
+                data: { status: 'rejected', rejectionReason: psError } 
             });
-            return res.status(200).json({ success: true, status: 'rejected', message: 'O pagamento falhou ou foi cancelado.' });
+            return res.status(200).json({ success: true, status: 'rejected', message: `Rejeitado: ${psError}` });
         }
 
-        // Se o status for "pending" (ou qualquer outro não listado acima), respondemos que está pendente.
         res.status(200).json({ 
             success: true, 
             status: 'pending', 
-            message: `O pagamento ainda se encontra pendente.` 
+            message: `A aguardar aprovação no telemóvel...` 
         });
 
     } catch (error) {
@@ -372,19 +371,20 @@ exports.getPaymentHistory = async (req, res) => {
             orderBy: { createdAt: 'desc' }
         });
 
-        // AUTO-SINCRONIZAÇÃO: Se houver pagamentos pendentes, verifica com a PaySuite silenciosamente
         let statusUpdated = false;
         for (let payment of history) {
             if (payment.status === 'pending') {
                 try {
                     const psStatus = await paysuiteService.getPaymentStatus(payment.gatewayReference);
                     
-                    // CORREÇÃO CRÍTICA TAMBÉM APLICADA AQUI
-                    const current = (psStatus.data && psStatus.data.status) 
-                        ? String(psStatus.data.status).toLowerCase() 
-                        : 'pending';
+                    let current = 'pending';
+                    if (psStatus.data && psStatus.data.status) {
+                        current = String(psStatus.data.status).toLowerCase();
+                    } else if (psStatus.status) {
+                        current = String(psStatus.status).toLowerCase();
+                    }
 
-                    const successList = ['paid', 'completed'];
+                    const successList = ['paid', 'completed', 'successful', 'success', 'approved'];
                     const failList = ['failed', 'cancelled', 'error', 'declined'];
 
                     if (successList.includes(current)) {
