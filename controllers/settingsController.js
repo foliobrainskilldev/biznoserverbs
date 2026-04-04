@@ -1,3 +1,4 @@
+// Ficheiro: src/controllers/settingsController.js
 const prisma = require('../config/db');
 const { handleError, sanitizeStoreNameForURL } = require('../utils/helpers');
 const cloudinary = require('cloudinary').v2;
@@ -321,6 +322,7 @@ exports.verifyPaymentStatus = async (req, res) => {
         // Consulta a API da PaySuite
         const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
         
+        // Vamos extrair TUDO o que pudermos para descobrir o que eles enviam
         const statusPrincipal = paysuiteStatus.status || '';
         const statusData = (paysuiteStatus.data && paysuiteStatus.data.status) ? paysuiteStatus.data.status : '';
         const currentStatus = statusData || statusPrincipal; 
@@ -354,6 +356,7 @@ exports.verifyPaymentStatus = async (req, res) => {
             return res.status(200).json({ success: true, status: 'rejected', message: 'O pagamento falhou ou foi cancelado.' });
         }
 
+        // MENSAGEM DETETIVE: Envia a palavra exata para o frontend
         res.status(200).json({ 
             success: true, 
             status: 'pending', 
