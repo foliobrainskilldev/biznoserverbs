@@ -1,4 +1,3 @@
-// Ficheiro: src/controllers/settingsController.js
 const prisma = require('../config/db');
 const { handleError, sanitizeStoreNameForURL } = require('../utils/helpers');
 const cloudinary = require('cloudinary').v2;
@@ -245,9 +244,6 @@ exports.updateContacts = async (req, res) => {
     }
 };
 
-// ===============================================
-// INTEGRAÇÃO PAYSUITE (Criar Pagamento)
-// ===============================================
 exports.initiatePlanPayment = async (req, res) => {
     const { planId, provider } = req.body; 
     
@@ -295,7 +291,7 @@ exports.initiatePlanPayment = async (req, res) => {
             reference: paysuiteResponse.data.id
         });
     } catch (error) {
-        console.error('[ERRO_DETALHADO_PAYSUITE]:', error.message);
+        console.error('Erro PaySuite:', error.message);
         return res.status(400).json({ 
             success: false, 
             message: `Erro PaySuite: ${error.message}` 
@@ -303,9 +299,6 @@ exports.initiatePlanPayment = async (req, res) => {
     }
 };
 
-// ===============================================
-// INTEGRAÇÃO PAYSUITE (Verificar Status Manual)
-// ===============================================
 exports.verifyPaymentStatus = async (req, res) => {
     const { gatewayReference } = req.params;
 
@@ -319,15 +312,12 @@ exports.verifyPaymentStatus = async (req, res) => {
         if (payment.userId !== req.user.id) return res.status(403).json({ success: false, message: 'Acesso negado.' });
         if (payment.status === 'approved') return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento já processado e aprovado.' });
 
-        // Consulta a API da PaySuite
         const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
         
-        // Vamos extrair TUDO o que pudermos para descobrir o que eles enviam
         const statusPrincipal = paysuiteStatus.status || '';
         const statusData = (paysuiteStatus.data && paysuiteStatus.data.status) ? paysuiteStatus.data.status : '';
         const currentStatus = statusData || statusPrincipal; 
 
-        // Tabela de status de sucesso abrangente
         const successStatuses = ['paid', 'successful', 'completed', 'approved', 'success'];
         const failedStatuses = ['failed', 'cancelled', 'error', 'declined'];
 
@@ -356,7 +346,6 @@ exports.verifyPaymentStatus = async (req, res) => {
             return res.status(200).json({ success: true, status: 'rejected', message: 'O pagamento falhou ou foi cancelado.' });
         }
 
-        // MENSAGEM DETETIVE: Envia a palavra exata para o frontend
         res.status(200).json({ 
             success: true, 
             status: 'pending', 
