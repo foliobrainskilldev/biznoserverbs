@@ -7,15 +7,15 @@ const getHeaders = () => ({
     'Accept': 'application/json'
 });
 
-exports.createPaymentRequest = async (amount, reference, description, returnUrl) => {
+exports.createPaymentRequest = async (amount, reference, description, method, returnUrl) => {
     const endpoint = `${config.paysuite.apiUrl}/payments`;
     
-    // Deixamos o "method" de fora propositadamente. 
-    // Assim a PaySuite mostra todas as opções no seu próprio portal de Checkout.
+    // Voltamos a enviar o method, pois a PaySuite exige para saber qual formulário renderizar
     const payload = {
         amount: Number(amount),
         reference: reference,
         description: description,
+        method: method,
         return_url: returnUrl
     };
 

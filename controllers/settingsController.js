@@ -246,10 +246,15 @@ exports.updateContacts = async (req, res) => {
 };
 
 exports.initiatePlanPayment = async (req, res) => {
-    const { planId } = req.body; // Removemos a dependência do Provider (MPesa, Emola, etc.)
+    const { planId, provider } = req.body; 
     
-    if (!planId) {
-        return res.status(400).json({ success: false, message: 'ID do plano é obrigatório.' });
+    if (!planId || !provider) {
+        return res.status(400).json({ success: false, message: 'ID do plano e provedor são obrigatórios.' });
+    }
+
+    const validProviders = ['mpesa', 'emola', 'credit_card'];
+    if (!validProviders.includes(provider.toLowerCase())) {
+        return res.status(400).json({ success: false, message: `Método de pagamento inválido.` });
     }
     
     try {
@@ -265,7 +270,8 @@ exports.initiatePlanPayment = async (req, res) => {
             plan.price,
             internalReference,
             description,
-            returnUrl // Não passamos método, a PaySuite cuida disso
+            provider.toLowerCase(),
+            returnUrl
         );
         
         await prisma.payment.create({
@@ -273,7 +279,7 @@ exports.initiatePlanPayment = async (req, res) => {
                 userId: req.user.id,
                 planId: planId,
                 status: 'pending',
-                provider: 'paysuite_checkout', // Nome genérico do provedor
+                provider: provider.toLowerCase(),
                 gatewayReference: paysuiteResponse.data.id,
                 proof: {}
             }
