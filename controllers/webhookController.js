@@ -10,61 +10,64 @@ exports.handlePaysuiteWebhook = async (req, res) => {
 
     if (!signature || !secret) {
         console.error('[WEBHOOK] Assinatura ou secret ausente no .env.');
-        return res.status(400).json({ status: 'error', message: 'Falta de autenticação ou configuração no servidor.' });
+        return res.status(400).json({ status: 'error', message: 'Falta de autenticação no servidor.' });
     }
 
-    if (!req.rawBody) {
-        console.error('[WEBHOOK] Payload rawBody ausente. Middleware do Express não funcionou.');
+    // Fallback: se o rawBody não foi criado, transformamos o body novamente em string
+    const payloadString = req.rawBody || JSON.stringify(req.body);
+
+    if (!payloadString) {
+        console.error('[WEBHOOK] Payload vazio.');
         return res.status(400).json({ status: 'error', message: 'Payload inválido.' });
     }
 
-    // Validação de Segurança (HMAC SHA256)
+    // Validação de Segurança (HMAC SHA256) compatível com PaySuite
     try {
         const calculatedSignature = crypto.createHmac('sha256', secret)
-                                          .update(req.rawBody)
+                                          .update(payloadString)
                                           .digest('hex');
 
-        // Comparação segura contra ataques de tempo
-        const isSignatureValid = crypto.timingSafeEqual(
-            Buffer.from(signature),
-            Buffer.from(calculatedSignature)
-        );
-
-        if (!isSignatureValid) {
+        if (signature !== calculatedSignature) {
             console.error('[WEBHOOK] Assinatura inválida! Possível tentativa de fraude.');
             return res.status(403).json({ status: 'error', message: 'Assinatura inválida.' });
         }
     } catch (cryptoError) {
         console.error('[WEBHOOK] Erro ao validar criptografia:', cryptoError.message);
-        return res.status(403).json({ status: 'error', message: 'Erro de validação de assinatura.' });
+        return res.status(403).json({ status: 'error', message: 'Erro de validação.' });
     }
 
     // Processamento do Evento
     try {
-        const parsedData = JSON.parse(req.rawBody);
+        const parsedData = typeof req.body === 'object' ? req.body : JSON.parse(payloadString);
         const eventName = parsedData.event || '';
-        // Proteção: O Gateway pode mandar o nosso ID em "reference" ou em "id"
-        const gatewayReference = parsedData.data?.id || parsedData.data?.reference; 
+        
+        // A API envia o ULID e a nossa Referência
+        const gatewayId = parsedData.data?.id; 
+        const gatewayReference = parsedData.data?.reference; 
 
-        console.log(`[WEBHOOK] Recebido evento: ${eventName} para a referência: ${gatewayReference}`);
+        console.log(`[WEBHOOK] Recebido evento: ${eventName} para ID: ${gatewayId}`);
 
-        // Aceita várias terminologias possíveis dos Webhooks do PaySuite
         const successEvents = ['payment.success', 'payment.successful', 'charge.completed', 'success'];
         const failedEvents = ['payment.failed', 'payment.cancelled', 'charge.failed', 'failed'];
 
-        if (successEvents.includes(eventName.toLowerCase())) {
-            const payment = await prisma.payment.findFirst({
-                where: { 
-                    OR: [
-                        { gatewayReference: gatewayReference },
-                        { gatewayReference: parsedData.data?.reference }
-                    ]
-                },
-                include: { user: true, plan: true }
-            });
+        const payment = await prisma.payment.findFirst({
+            where: { 
+                OR: [
+                    { gatewayReference: gatewayId },
+                    { gatewayReference: gatewayReference }
+                ]
+            },
+            include: { user: true, plan: true }
+        });
 
-            // Se o pagamento for encontrado e ainda não estiver aprovado, aprovamos e associamos o plano
-            if (payment && payment.status !== 'approved') {
+        if (!payment) {
+            console.log(`[WEBHOOK] Pagamento ignorado (não localizado) - Ref: ${gatewayId}`);
+            return res.status(200).json({ status: 'success', message: 'Ignorado. Não encontrado.' });
+        }
+
+        if (successEvents.includes(eventName.toLowerCase())) {
+            // Se o pagamento ainda não estiver aprovado, aprovamos e associamos o plano
+            if (payment.status !== 'approved') {
                 const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
                 
                 await prisma.$transaction([
@@ -79,33 +82,24 @@ exports.handlePaysuiteWebhook = async (req, res) => {
                 ]);
 
                 await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
-                console.log(`[WEBHOOK] Pagamento de ${payment.user.storeName} aprovado com sucesso via Webhook e Status do Utilizador Atualizado!`);
+                console.log(`[WEBHOOK] Plano ativado para ${payment.user.storeName} via Webhook!`);
             }
         } 
         else if (failedEvents.includes(eventName.toLowerCase())) {
-            const payment = await prisma.payment.findFirst({
-                where: { 
-                    OR: [
-                        { gatewayReference: gatewayReference },
-                        { gatewayReference: parsedData.data?.reference }
-                    ]
-                }
-            });
-
-            if (payment && payment.status !== 'rejected') {
+            if (payment.status !== 'rejected') {
                 await prisma.payment.update({
                     where: { id: payment.id },
-                    data: { status: 'rejected', rejectionReason: parsedData.data?.error || 'Falha ou cancelamento no Gateway.' }
+                    data: { status: 'rejected', rejectionReason: parsedData.data?.error || 'Recusado/Cancelado no Gateway.' }
                 });
-                console.log(`[WEBHOOK] Pagamento rejeitado via Webhook para a referência: ${gatewayReference}`);
+                console.log(`[WEBHOOK] Pagamento rejeitado para: ${gatewayId}`);
             }
         }
 
-        // A API da PaySuite exige que enviemos uma resposta rápida (200 OK) para confirmar a receção
-        res.status(200).json({ status: 'success', message: 'Webhook processado com sucesso.' });
+        // Resposta obrigatória 200 OK para o Gateway parar de reenviar o Webhook
+        res.status(200).json({ status: 'success', message: 'Processado com sucesso.' });
 
     } catch (error) {
-        console.error('[WEBHOOK] Erro interno ao processar dados:', error.message);
-        res.status(500).json({ status: 'error', message: 'Erro interno no servidor' });
+        console.error('[WEBHOOK] Erro interno:', error.message);
+        res.status(500).json({ status: 'error', message: 'Erro interno.' });
     }
 };

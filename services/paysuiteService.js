@@ -10,12 +10,12 @@ const getHeaders = () => ({
 exports.createPaymentRequest = async (amount, reference, description, method, returnUrl) => {
     const endpoint = `${config.paysuite.apiUrl}/payments`;
     
-    // Voltamos a enviar o method, pois a PaySuite exige para saber qual formulário renderizar
+    // De acordo com a documentação da API PaySuite
     const payload = {
-        amount: Number(amount),
-        reference: reference,
-        description: description,
-        method: method,
+        amount: Number(amount), // Garante formato numérico
+        reference: String(reference).substring(0, 50), // Máx 50 caracteres
+        description: String(description).substring(0, 125), // Máx 125 caracteres
+        method: method, // mpesa, emola ou credit_card
         return_url: returnUrl
     };
 
