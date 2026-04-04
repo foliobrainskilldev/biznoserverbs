@@ -204,20 +204,32 @@ exports.updateContacts = async (req, res) => {
         const { showPhone, showEmail, showSocials, customWhatsappMessage, socials, paymentMethods, deliverySettings } = req.body;
         
         const newContacts = {
-            showPhone: !!showPhone,
-            showEmail: !!showEmail,
-            showSocials: !!showSocials,
+            showPhone: showPhone ? true : false,
+            showEmail: showEmail ? true : false,
+            showSocials: showSocials ? true : false,
             customWhatsappMessage: customWhatsappMessage || '',
-            socials: { facebook: socials?.facebook || '', instagram: socials?.instagram || '', tiktok: socials?.tiktok || '' },
-            paymentMethods: { mpesa: !!paymentMethods?.mpesa, emola: !!paymentMethods?.emola, transfer: !!paymentMethods?.transfer, onDelivery: !!paymentMethods?.onDelivery }
+            socials: { 
+                facebook: (socials && socials.facebook) ? socials.facebook : '', 
+                instagram: (socials && socials.instagram) ? socials.instagram : '', 
+                tiktok: (socials && socials.tiktok) ? socials.tiktok : '' 
+            },
+            paymentMethods: { 
+                mpesa: (paymentMethods && paymentMethods.mpesa) ? true : false, 
+                emola: (paymentMethods && paymentMethods.emola) ? true : false, 
+                transfer: (paymentMethods && paymentMethods.transfer) ? true : false, 
+                onDelivery: (paymentMethods && paymentMethods.onDelivery) ? true : false 
+            }
         };
 
         let newDelivery = req.user.deliverySettings || {};
         if (deliverySettings) {
             newDelivery = {
-                isDeliveryEnabled: !!deliverySettings.isDeliveryEnabled,
+                isDeliveryEnabled: deliverySettings.isDeliveryEnabled ? true : false,
                 freeDeliveryThreshold: Number(deliverySettings.freeDeliveryThreshold) || 0,
-                provinceShipping: { enabled: !!deliverySettings.provinceShipping?.enabled, cost: Number(deliverySettings.provinceShipping?.cost) || 0 }
+                provinceShipping: { 
+                    enabled: (deliverySettings.provinceShipping && deliverySettings.provinceShipping.enabled) ? true : false, 
+                    cost: (deliverySettings.provinceShipping && deliverySettings.provinceShipping.cost) ? Number(deliverySettings.provinceShipping.cost) : 0 
+                }
             };
         }
 
@@ -309,9 +321,8 @@ exports.verifyPaymentStatus = async (req, res) => {
         // Consulta a API da PaySuite
         const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
         
-        // Vamos extrair TUDO o que pudermos para descobrir o que eles enviam
         const statusPrincipal = paysuiteStatus.status || '';
-        const statusData = paysuiteStatus.data?.status || '';
+        const statusData = (paysuiteStatus.data && paysuiteStatus.data.status) ? paysuiteStatus.data.status : '';
         const currentStatus = statusData || statusPrincipal; 
 
         // Tabela de status de sucesso abrangente
@@ -360,11 +371,11 @@ exports.getCurrentPlan = async (req, res) => {
         res.status(200).json({
             success: true,
             plan: {
-                name: user.plan?.name || 'N/A',
+                name: (user.plan && user.plan.name) ? user.plan.name : 'N/A',
                 expiresAt: user.planExpiresAt,
                 status: user.planStatus,
-                productLimit: user.plan?.productLimit || 0,
-                imageLimitPerProduct: user.plan?.imageLimitPerProduct || 0,
+                productLimit: (user.plan && user.plan.productLimit !== undefined) ? user.plan.productLimit : 0,
+                imageLimitPerProduct: (user.plan && user.plan.imageLimitPerProduct !== undefined) ? user.plan.imageLimitPerProduct : 0,
                 storageUsed: user.storageUsed
             }
         });
