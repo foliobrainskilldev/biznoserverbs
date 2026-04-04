@@ -319,12 +319,15 @@ exports.verifyPaymentStatus = async (req, res) => {
         // Vai à PaySuite buscar o estado real da transação
         const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
         
-        const currentStatus = paysuiteStatus.data?.status || paysuiteStatus.status || 'pending'; 
+        // CORREÇÃO CRÍTICA: Lemos estritamente o "data.status", e ignoramos o wrapper "status: success"
+        const currentStatus = (paysuiteStatus.data && paysuiteStatus.data.status) 
+            ? String(paysuiteStatus.data.status).toLowerCase() 
+            : 'pending';
 
-        const successStatuses = ['paid', 'successful', 'completed', 'approved', 'success'];
+        const successStatuses = ['paid', 'completed']; // Apenas estados concretos de pagamento
         const failedStatuses = ['failed', 'cancelled', 'error', 'declined'];
 
-        if (successStatuses.includes(String(currentStatus).toLowerCase())) {
+        if (successStatuses.includes(currentStatus)) {
             const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
             
             await prisma.$transaction([
@@ -341,7 +344,7 @@ exports.verifyPaymentStatus = async (req, res) => {
             await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
             return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento concluído e plano ativado!' });
         
-        } else if (failedStatuses.includes(String(currentStatus).toLowerCase())) {
+        } else if (failedStatuses.includes(currentStatus)) {
             await prisma.payment.update({ 
                 where: { id: payment.id }, 
                 data: { status: 'rejected', rejectionReason: 'Cancelado ou falhou no Gateway.' } 
@@ -349,11 +352,11 @@ exports.verifyPaymentStatus = async (req, res) => {
             return res.status(200).json({ success: true, status: 'rejected', message: 'O pagamento falhou ou foi cancelado.' });
         }
 
-        // Se o status for "pending", responde que está pendente, sem gerar erro
+        // Se o status for "pending" (ou qualquer outro não listado acima), respondemos que está pendente.
         res.status(200).json({ 
             success: true, 
             status: 'pending', 
-            message: `O status na PaySuite ainda é pendente.` 
+            message: `O pagamento ainda se encontra pendente.` 
         });
 
     } catch (error) {
@@ -375,11 +378,16 @@ exports.getPaymentHistory = async (req, res) => {
             if (payment.status === 'pending') {
                 try {
                     const psStatus = await paysuiteService.getPaymentStatus(payment.gatewayReference);
-                    const current = psStatus.data?.status || psStatus.status;
-                    const successList = ['paid', 'successful', 'completed', 'success'];
+                    
+                    // CORREÇÃO CRÍTICA TAMBÉM APLICADA AQUI
+                    const current = (psStatus.data && psStatus.data.status) 
+                        ? String(psStatus.data.status).toLowerCase() 
+                        : 'pending';
+
+                    const successList = ['paid', 'completed'];
                     const failList = ['failed', 'cancelled', 'error', 'declined'];
 
-                    if (successList.includes(String(current).toLowerCase())) {
+                    if (successList.includes(current)) {
                         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
                         await prisma.$transaction([
                             prisma.user.update({ where: { id: payment.userId }, data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt } }),
@@ -388,7 +396,7 @@ exports.getPaymentHistory = async (req, res) => {
                         payment.status = 'approved';
                         statusUpdated = true;
                         await mailer.sendPaymentApprovedEmail(req.user.email, req.user.storeName, payment.plan.name);
-                    } else if (failList.includes(String(current).toLowerCase())) {
+                    } else if (failList.includes(current)) {
                         await prisma.payment.update({ where: { id: payment.id }, data: { status: 'rejected' } });
                         payment.status = 'rejected';
                         statusUpdated = true;
