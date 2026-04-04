@@ -315,22 +315,19 @@ exports.verifyPaymentStatus = async (req, res) => {
 
         const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
         
+        // --- LÓGICA BLINDADA: Só lê o status da transação REAL, nunca o "status: success" do wrapper da API ---
         let currentStatus = 'pending';
-        let psError = 'Cancelado ou rejeitado pela operadora.';
-
         if (paysuiteStatus.data && paysuiteStatus.data.status) {
             currentStatus = String(paysuiteStatus.data.status).toLowerCase();
-        } else if (paysuiteStatus.status) {
-            currentStatus = String(paysuiteStatus.status).toLowerCase();
         }
 
+        let psError = 'Cancelado ou rejeitado pela operadora.';
         if (paysuiteStatus.data && paysuiteStatus.data.error) {
             psError = paysuiteStatus.data.error;
-        } else if (paysuiteStatus.message) {
-            psError = paysuiteStatus.message;
         }
 
-        const successStatuses = ['paid', 'completed', 'successful', 'success', 'approved']; 
+        // REMOVIDO o "success" e "successful" desta lista. Aceita APENAS paid ou completed!
+        const successStatuses = ['paid', 'completed']; 
         const failedStatuses = ['failed', 'cancelled', 'error', 'declined'];
 
         if (successStatuses.includes(currentStatus)) {
@@ -383,14 +380,13 @@ exports.getPaymentHistory = async (req, res) => {
                 try {
                     const psStatus = await paysuiteService.getPaymentStatus(payment.gatewayReference);
                     
+                    // --- LÓGICA BLINDADA AQUI TAMBÉM ---
                     let current = 'pending';
                     if (psStatus.data && psStatus.data.status) {
                         current = String(psStatus.data.status).toLowerCase();
-                    } else if (psStatus.status) {
-                        current = String(psStatus.status).toLowerCase();
                     }
 
-                    const successList = ['paid', 'completed', 'successful', 'success', 'approved'];
+                    const successList = ['paid', 'completed'];
                     const failList = ['failed', 'cancelled', 'error', 'declined'];
 
                     if (successList.includes(current)) {
