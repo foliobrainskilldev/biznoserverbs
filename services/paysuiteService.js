@@ -10,19 +10,13 @@ const getHeaders = () => ({
 exports.createPaymentRequest = async (amount, reference, description, method, returnUrl) => {
     const endpoint = `${config.paysuite.apiUrl}/payments`;
     
-    // Pega do ENV sugerido ou faz fallback dinâmico
-    const finalReturnUrl = config.urls.paymentReturnUrl || returnUrl;
-    const finalCallbackUrl = config.urls.paymentCallbackUrl || `${config.urls.appUrl}/api/webhooks/paysuite`;
-
-    // A doc diz que "amount" deve ser "numeric". 
-    // Usamos Number() em vez de toString()
+    // Payload estritamente de acordo com a documentação da PaySuite
     const payload = {
         amount: Number(amount),
         reference: reference,
         description: description,
         method: method,
-        return_url: finalReturnUrl,
-        callback_url: finalCallbackUrl // Necessário para notificar o webhook
+        return_url: returnUrl
     };
 
     try {
@@ -34,13 +28,13 @@ exports.createPaymentRequest = async (amount, reference, description, method, re
         
         const data = await response.json();
 
-        // LOG para sabermos EXATAMENTE o que a PaySuite reclamou caso falhe (ex: token inválido, método errado)
+        // LOG para sabermos o que a PaySuite reclamou caso falhe
         if (!response.ok || data.status === 'error') {
             console.error('[PAYSUITE_REJEITADO_DETALHES]:', JSON.stringify(data));
             throw new Error(data.message || `Erro da PaySuite: HTTP ${response.status}`);
         }
 
-        return data; // Retorna: status, data { id, amount, reference, status, checkout_url }
+        return data; 
     } catch (error) {
         console.error(`[PAYSUITE_ERROR] Erro ao criar pagamento:`, error.message);
         throw error;
@@ -48,6 +42,7 @@ exports.createPaymentRequest = async (amount, reference, description, method, re
 };
 
 exports.getPaymentStatus = async (paymentId) => {
+    // A documentação diz: GET api/v1/payments/{id}
     const endpoint = `${config.paysuite.apiUrl}/payments/${paymentId}`;
 
     try {

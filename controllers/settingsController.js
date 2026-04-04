@@ -1,3 +1,4 @@
+// Ficheiro: src/controllers/settingsController.js
 const prisma = require('../config/db');
 const { handleError, sanitizeStoreNameForURL } = require('../utils/helpers');
 const cloudinary = require('cloudinary').v2;
@@ -263,7 +264,7 @@ exports.initiatePlanPayment = async (req, res) => {
         const internalReference = `BIZ${req.user.id.substring(0, 4)}${Date.now()}`.toUpperCase();
         const description = `Plano ${plan.name} - ${req.user.storeName}`;
 
-        const returnUrl = config.urls.paymentReturnUrl || `${config.urls.appUrl}/dash/pagamento-sucesso.html`; 
+        const returnUrl = config.urls.paymentReturnUrl || `${config.urls.appUrl}/dash/planos.html`; 
 
         const paysuiteResponse = await paysuiteService.createPaymentRequest(
             plan.price,
@@ -279,7 +280,7 @@ exports.initiatePlanPayment = async (req, res) => {
                 planId: planId,
                 status: 'pending',
                 provider: provider.toLowerCase(),
-                gatewayReference: paysuiteResponse.data.id,
+                gatewayReference: paysuiteResponse.data.id, // O ID interno da transação na PaySuite
                 proof: {}
             }
         });
@@ -303,20 +304,22 @@ exports.verifyPaymentStatus = async (req, res) => {
     const { gatewayReference } = req.params;
 
     try {
-        const payment = await prisma.payment.findUnique({ 
+        const payment = await prisma.payment.findFirst({ 
             where: { gatewayReference: gatewayReference },
             include: { plan: true, user: true } 
         });
 
         if (!payment) return res.status(404).json({ success: false, message: 'Pagamento não encontrado no nosso sistema.' });
         if (payment.userId !== req.user.id) return res.status(403).json({ success: false, message: 'Acesso negado.' });
-        if (payment.status === 'approved') return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento já processado e aprovado.' });
+        
+        if (payment.status === 'approved') {
+            return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento já processado e aprovado.' });
+        }
 
+        // Vai à PaySuite buscar o estado real da transação
         const paysuiteStatus = await paysuiteService.getPaymentStatus(gatewayReference);
         
-        const statusPrincipal = paysuiteStatus.status || '';
-        const statusData = (paysuiteStatus.data && paysuiteStatus.data.status) ? paysuiteStatus.data.status : '';
-        const currentStatus = statusData || statusPrincipal; 
+        const currentStatus = paysuiteStatus.data?.status || paysuiteStatus.status || 'pending'; 
 
         const successStatuses = ['paid', 'successful', 'completed', 'approved', 'success'];
         const failedStatuses = ['failed', 'cancelled', 'error', 'declined'];
@@ -346,14 +349,59 @@ exports.verifyPaymentStatus = async (req, res) => {
             return res.status(200).json({ success: true, status: 'rejected', message: 'O pagamento falhou ou foi cancelado.' });
         }
 
+        // Se o status for "pending", responde que está pendente, sem gerar erro
         res.status(200).json({ 
             success: true, 
             status: 'pending', 
-            message: `O status na PaySuite é: "${currentStatus}".` 
+            message: `O status na PaySuite ainda é pendente.` 
         });
 
     } catch (error) {
         handleError(res, error, 'Erro ao verificar estado do pagamento.');
+    }
+};
+
+exports.getPaymentHistory = async (req, res) => {
+    try {
+        const history = await prisma.payment.findMany({ 
+            where: { userId: req.user.id },
+            include: { plan: { select: { name: true, price: true } } },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // AUTO-SINCRONIZAÇÃO: Se houver pagamentos pendentes, verifica com a PaySuite silenciosamente
+        let statusUpdated = false;
+        for (let payment of history) {
+            if (payment.status === 'pending') {
+                try {
+                    const psStatus = await paysuiteService.getPaymentStatus(payment.gatewayReference);
+                    const current = psStatus.data?.status || psStatus.status;
+                    const successList = ['paid', 'successful', 'completed', 'success'];
+                    const failList = ['failed', 'cancelled', 'error', 'declined'];
+
+                    if (successList.includes(String(current).toLowerCase())) {
+                        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                        await prisma.$transaction([
+                            prisma.user.update({ where: { id: payment.userId }, data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt } }),
+                            prisma.payment.update({ where: { id: payment.id }, data: { status: 'approved' } })
+                        ]);
+                        payment.status = 'approved';
+                        statusUpdated = true;
+                        await mailer.sendPaymentApprovedEmail(req.user.email, req.user.storeName, payment.plan.name);
+                    } else if (failList.includes(String(current).toLowerCase())) {
+                        await prisma.payment.update({ where: { id: payment.id }, data: { status: 'rejected' } });
+                        payment.status = 'rejected';
+                        statusUpdated = true;
+                    }
+                } catch (e) {
+                    console.error(`Erro na sincronização automática do pagamento ${payment.id}:`, e.message);
+                }
+            }
+        }
+
+        res.status(200).json({ success: true, history, synced: statusUpdated });
+    } catch (error) {
+        handleError(res, error, 'Erro ao buscar histórico de pagamentos.');
     }
 };
 
@@ -373,18 +421,5 @@ exports.getCurrentPlan = async (req, res) => {
         });
     } catch (error) {
         handleError(res, error, 'Erro ao obter dados do plano.');
-    }
-};
-
-exports.getPaymentHistory = async (req, res) => {
-    try {
-        const history = await prisma.payment.findMany({ 
-            where: { userId: req.user.id },
-            include: { plan: { select: { name: true, price: true } } },
-            orderBy: { createdAt: 'desc' }
-        });
-        res.status(200).json({ success: true, history });
-    } catch (error) {
-        handleError(res, error, 'Erro ao buscar histórico de pagamentos.');
     }
 };
