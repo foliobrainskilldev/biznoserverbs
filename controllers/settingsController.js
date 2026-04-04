@@ -1,4 +1,3 @@
-// Ficheiro: src/controllers/settingsController.js
 const prisma = require('../config/db');
 const { handleError, sanitizeStoreNameForURL } = require('../utils/helpers');
 const cloudinary = require('cloudinary').v2;
@@ -123,6 +122,19 @@ exports.updateProfileImage = async (req, res) => {
         res.status(200).json({ success: true, message: 'Perfil atualizado.', url: visual.profileImage.url });
     } catch (error) {
         handleError(res, error, "Erro ao atualizar imagem de perfil.");
+    }
+};
+
+exports.updateUserAvatar = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, message: "Imagem não enviada." });
+        let visual = req.user.visual || {};
+        visual = await handleImageUpdate(req.user.id, visual, req.file, 'userAvatar');
+        
+        await prisma.user.update({ where: { id: req.user.id }, data: { visual } });
+        res.status(200).json({ success: true, message: 'Foto de perfil atualizada.', url: visual.userAvatar.url });
+    } catch (error) {
+        handleError(res, error, "Erro ao atualizar avatar do utilizador.");
     }
 };
 
@@ -331,7 +343,6 @@ exports.verifyPaymentStatus = async (req, res) => {
             return res.status(200).json({ success: true, status: 'rejected', message: 'O pagamento falhou ou foi cancelado.' });
         }
 
-        // MENSAGEM DETETIVE: Envia a palavra exata para o frontend
         res.status(200).json({ 
             success: true, 
             status: 'pending', 

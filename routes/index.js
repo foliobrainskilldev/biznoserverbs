@@ -1,4 +1,3 @@
-// Ficheiro: src/routes/index.js
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -46,7 +45,6 @@ router.post('/admin/login', adminController.loginAdmin);
 const adminProtectedRoutes = express.Router();
 adminProtectedRoutes.use(verifyAdminToken);
 
-// Como vamos montar este router em '/admin', retiramos o '/admin' do início de cada rota aqui
 adminProtectedRoutes.get('/dashboard', adminController.getAdminDashboard);
 adminProtectedRoutes.get('/users', adminController.getAllUsers);
 adminProtectedRoutes.post('/users/:id/block', adminController.blockUser);
@@ -101,10 +99,14 @@ userProtectedRoutes.put('/my-account', checkPlanStatus, settingsController.updat
 userProtectedRoutes.get('/visual', settingsController.getVisualTheme);
 userProtectedRoutes.post('/visual', checkPlanStatus, settingsController.updateVisualTheme);
 userProtectedRoutes.post('/visual/apply-preset', checkPlanStatus, settingsController.applyThemePreset);
+
+// Rotas de Media
 userProtectedRoutes.post('/media/cover', checkPlanStatus, upload.single('coverImage'), settingsController.updateCoverImage);
 userProtectedRoutes.post('/media/profile', checkPlanStatus, upload.single('profileImage'), settingsController.updateProfileImage);
+userProtectedRoutes.post('/media/avatar', checkPlanStatus, upload.single('userAvatar'), settingsController.updateUserAvatar);
 userProtectedRoutes.get('/media', settingsController.getMedia);
 userProtectedRoutes.delete('/media/:asset_id', checkPlanStatus, settingsController.deleteMedia);
+
 userProtectedRoutes.get('/contacts', settingsController.getContacts);
 userProtectedRoutes.post('/contacts', checkPlanStatus, settingsController.updateContacts);
 
