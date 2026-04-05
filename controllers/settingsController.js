@@ -163,14 +163,20 @@ exports.initiatePlanPayment = async (req, res) => {
         const description = `Plano ${plan.name} - ${req.user.storeName}`;
         const returnUrl = config.urls.paymentReturnUrl || `${config.urls.appUrl}/dash/planos.html`; 
 
-        // FORMATAÇÃO RIGOROSA DO NÚMERO (Resolve a falha inicial do M-Pesa)
-        let paymentPhone = (phone || req.user.whatsapp || '').replace(/\D/g, ''); // Remove tudo que não for número
-        if (paymentPhone.startsWith('258')) {
-            paymentPhone = paymentPhone.substring(3); // Remove o 258 se existir
-        }
+        let paymentPhone = (phone || req.user.whatsapp || '').replace(/\D/g, ''); 
+        if (paymentPhone.startsWith('258')) paymentPhone = paymentPhone.substring(3);
 
-        if (provider !== 'credit_card' && paymentPhone.length !== 9) {
-            return res.status(400).json({ success: false, message: 'O número de telemóvel deve ter 9 dígitos (ex: 84XXXXXXX).' });
+        if (provider !== 'credit_card') {
+            if (paymentPhone.length !== 9) {
+                return res.status(400).json({ success: false, message: 'O número de telemóvel deve ter 9 dígitos (ex: 84XXXXXXX).' });
+            }
+            // Regras Exatas das Operadoras Moçambicanas
+            if (provider === 'mpesa' && !/^(84|85)/.test(paymentPhone)) {
+                return res.status(400).json({ success: false, message: 'Para pagar com M-Pesa o número deve começar por 84 ou 85.' });
+            }
+            if (provider === 'emola' && !/^(86|87)/.test(paymentPhone)) {
+                return res.status(400).json({ success: false, message: 'Para pagar com eMola o número deve começar por 86 ou 87.' });
+            }
         }
 
         const debitoResponse = await debitoService.createPaymentRequest(
@@ -192,7 +198,8 @@ exports.initiatePlanPayment = async (req, res) => {
         });
     } catch (error) {
         console.error('Erro Débito API:', error.message);
-        return res.status(400).json({ success: false, message: `Erro no pagamento: ${error.message}` });
+        // Retorna o erro exato para aparecer no ecrã e sabermos o que falhou
+        return res.status(400).json({ success: false, message: error.message });
     }
 };
 
@@ -210,16 +217,12 @@ exports.verifyPaymentStatus = async (req, res) => {
         
         if (payment.status === 'approved') return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento processado com sucesso.' });
 
-        // Consulta a API da Débito
         const debitoStatus = await debitoService.getPaymentStatus(payment.gatewayReference);
         
         let finalStatus = 'pending';
         let apiError = 'Aguardando pagamento ou cancelado.';
 
         if (debitoStatus) {
-            console.log(`[DÉBITO STATUS CHECK] Ref: ${payment.gatewayReference} | RAW Response:`, JSON.stringify(debitoStatus));
-            
-            // Lógica avançada para extrair o status real, previne loop infinito (Resolve o problema "Aguardar operadora")
             let rawStatus = debitoStatus.status || (debitoStatus.data && debitoStatus.data.status) || 'PENDING';
             const mainStatus = String(rawStatus).toUpperCase();
             
@@ -250,7 +253,6 @@ exports.verifyPaymentStatus = async (req, res) => {
 };
 
 exports.getPaymentHistory = async (req, res) => {
-    // Mesma lógica de verificação aplicada ao histórico
     try {
         const history = await prisma.payment.findMany({ 
             where: { userId: req.user.id }, include: { plan: { select: { name: true, price: true } } }, orderBy: { createdAt: 'desc' }

@@ -7,8 +7,8 @@ class DebitoService {
         const baseUrl = config.debito.apiUrl;
         const walletId = config.debito.wallets[provider];
 
-        if (!walletId) throw new Error(`O ID da carteira não está configurado para: ${provider}`);
-        if (!config.debito.token) throw new Error('Token da API Débito não configurado.');
+        if (!walletId) throw new Error(`O .env não tem o Wallet ID configurado para: ${provider}`);
+        if (!config.debito.token) throw new Error('Token da API Débito não configurado no .env.');
 
         let endpoint = '';
         let payload = {};
@@ -25,8 +25,7 @@ class DebitoService {
         }
 
         const url = `${baseUrl}${endpoint}`;
-        console.log(`[DÉBITO API INITIATE] POST ${url} | Payload:`, payload);
-
+        
         try {
             const response = await fetch(url, {
                 method: 'POST',
@@ -37,9 +36,12 @@ class DebitoService {
             const data = await response.json();
 
             if (!response.ok) {
-                console.error('[DÉBITO API ERROR RESP]', data);
-                // Extrai a mensagem real do erro (geralmente dentro de data.errors ou data.message)
-                const errorMsg = data.message || (data.errors ? JSON.stringify(data.errors) : 'Erro na operadora.');
+                // Se a API rejeitar (ex: M-Pesa não ativo), passamos o erro exato para o Frontend
+                let errorMsg = data.message || 'Erro desconhecido na operadora.';
+                if (data.errors) {
+                    if (typeof data.errors === 'string') errorMsg = data.errors;
+                    else if (typeof data.errors === 'object') errorMsg = Object.values(data.errors).flat().join(' | ');
+                }
                 throw new Error(errorMsg);
             }
 
