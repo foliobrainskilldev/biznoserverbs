@@ -1,5 +1,7 @@
 // Ficheiro: src/services/debitoService.js
-const { config } = require('../config/setup');
+const {
+    config
+} = require('../config/setup');
 
 const getHeaders = () => {
     if (!config.debito.token) {
@@ -16,11 +18,11 @@ const getHeaders = () => {
 exports.createPaymentRequest = async (amount, reference, description, method, phone, email, returnUrl) => {
     const baseUrl = config.debito.apiUrl.replace(/\/$/, '');
     const walletId = config.debito.wallets[method];
-    
+
     if (!walletId) {
         throw new Error(`Nenhuma carteira configurada no .env para o método: ${method}`);
     }
-    
+
     let endpoint = '';
     let payload = {};
 
@@ -38,7 +40,7 @@ exports.createPaymentRequest = async (amount, reference, description, method, ph
         };
     } else if (method === 'mpesa' || method === 'emola') {
         if (!msisdn) throw new Error("Número de telefone é obrigatório para pagamentos móveis.");
-        
+
         endpoint = `${baseUrl}/wallets/${walletId}/c2b/${method}`;
         payload = {
             msisdn: msisdn,
@@ -56,16 +58,19 @@ exports.createPaymentRequest = async (amount, reference, description, method, ph
     console.log('\n--- INÍCIO DA CHAMADA À DÉBITO API ---');
     console.log('ENDPOINT:', endpoint);
     console.log('PAYLOAD:', JSON.stringify(payload));
-    console.log('HEADERS:', JSON.stringify({ ...getHeaders(), 'Authorization': 'Bearer ***OCULTO***' }));
+    console.log('HEADERS:', JSON.stringify({
+        ...getHeaders(),
+        'Authorization': 'Bearer ***OCULTO***'
+    }));
     console.log('--------------------------------------\n');
 
     try {
-        const response = await fetch(endpoint, { 
-            method: 'POST', 
-            headers: getHeaders(), 
-            body: JSON.stringify(payload) 
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(payload)
         });
-        
+
         const data = await response.json();
 
         if (!response.ok) {
@@ -75,9 +80,9 @@ exports.createPaymentRequest = async (amount, reference, description, method, ph
 
         return {
             reference: data.debito_reference || data.transaction_id || reference,
-            checkout_url: data.checkout_url || data.payment_url || null, 
+            checkout_url: data.checkout_url || data.payment_url || null,
             status: data.status
-        }; 
+        };
     } catch (error) {
         console.error(`\n[DEBITO_ERROR_FATAL] Falha na comunicação com a API:`, error);
         throw error;
@@ -85,24 +90,30 @@ exports.createPaymentRequest = async (amount, reference, description, method, ph
 };
 
 exports.getPaymentStatus = async (debitoReference) => {
-    const baseUrl = config.debito.apiUrl.replace(/\/$/, '');
-    const endpoint = `${baseUrl}/transactions/${debitoReference}/status`;
+            const baseUrl = config.debito.apiUrl.replace(/\/$/, '');
+            const endpoint = `${baseUrl}/transactions/${debitoReference}/status`;
 
-    try {
-        const response = await fetch(endpoint, { 
-            method: 'GET', 
-            headers: getHeaders() 
-        });
-        
-        const data = await response.json();
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'GET',
+                    headers: getHeaders()
+                });
 
-        if (!response.ok) {
-            throw new Error(data.message || `Erro da Débito API: HTTP ${response.status}`);
-        }
+                const data = await response.json();
 
-        return data; 
-    } catch (error) {
-        console.error(`[DEBITO_ERROR] Erro ao verificar pagamento ${debitoReference}:`, error.message);
-        throw error;
-    }
-};
+                if (!response.ok) {
+                    throw new Error(data.message || `Erro da Débito API: HTTP ${response.status}`);
+                }
+
+                return data;
+            } catch (error) {
+                let causaReal = error.message;
+
+                // Extrai o motivo real da falha de rede (ex: ENOTFOUND, ECONNREFUSED, Invalid URL)
+                if (error.cause) {
+                    causaReal += ` - Motivo: ${error.cause.code || error.cause.message}`;
+                }
+
+                console.error(`\n[DEBITO_ERROR_FATAL]`, error);
+                throw new Error(causaReal);
+            }
