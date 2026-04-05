@@ -13,42 +13,34 @@ exports.handlePaysuiteWebhook = async (req, res) => {
         return res.status(400).json({ status: 'error', message: 'Falta de autenticação no servidor.' });
     }
 
-    // Fallback: se o rawBody não foi criado, transformamos o body novamente em string
     const payloadString = req.rawBody || JSON.stringify(req.body);
 
     if (!payloadString) {
-        console.error('[WEBHOOK] Payload vazio.');
         return res.status(400).json({ status: 'error', message: 'Payload inválido.' });
     }
 
-    // Validação de Segurança (HMAC SHA256) compatível com PaySuite
+    // Validação de Segurança
     try {
         const calculatedSignature = crypto.createHmac('sha256', secret)
                                           .update(payloadString)
                                           .digest('hex');
 
         if (signature !== calculatedSignature) {
-            console.error('[WEBHOOK] Assinatura inválida! Possível tentativa de fraude.');
             return res.status(403).json({ status: 'error', message: 'Assinatura inválida.' });
         }
     } catch (cryptoError) {
-        console.error('[WEBHOOK] Erro ao validar criptografia:', cryptoError.message);
         return res.status(403).json({ status: 'error', message: 'Erro de validação.' });
     }
 
-    // Processamento do Evento
     try {
         const parsedData = typeof req.body === 'object' ? req.body : JSON.parse(payloadString);
-        const eventName = parsedData.event || '';
         
-        // A API envia o ULID e a nossa Referência
+        // Retiramos a tolerância de eventos globais. Só processamos se for 'payment.success'.
+        const eventName = parsedData.event; 
         const gatewayId = parsedData.data?.id; 
         const gatewayReference = parsedData.data?.reference; 
 
         console.log(`[WEBHOOK] Recebido evento: ${eventName} para ID: ${gatewayId}`);
-
-        const successEvents = ['payment.success', 'payment.successful', 'charge.completed', 'success'];
-        const failedEvents = ['payment.failed', 'payment.cancelled', 'charge.failed', 'failed'];
 
         const payment = await prisma.payment.findFirst({
             where: { 
@@ -61,42 +53,49 @@ exports.handlePaysuiteWebhook = async (req, res) => {
         });
 
         if (!payment) {
-            console.log(`[WEBHOOK] Pagamento ignorado (não localizado) - Ref: ${gatewayId}`);
-            return res.status(200).json({ status: 'success', message: 'Ignorado. Não encontrado.' });
+            return res.status(200).json({ status: 'success', message: 'Ignorado. Pagamento não pertence a este sistema.' });
         }
 
-        if (successEvents.includes(eventName.toLowerCase())) {
-            // Se o pagamento ainda não estiver aprovado, aprovamos e associamos o plano
-            if (payment.status !== 'approved') {
-                const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
-                
-                await prisma.$transaction([
-                    prisma.user.update({
-                        where: { id: payment.userId },
-                        data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt }
-                    }),
-                    prisma.payment.update({
-                        where: { id: payment.id },
-                        data: { status: 'approved' }
-                    })
-                ]);
+        // --- BLINDAGEM DE SUCESSO ---
+        if (eventName === 'payment.success') {
+            
+            // Verificação dupla: O dinheiro realmente entrou?
+            const innerStatus = parsedData.data?.status;
+            const transactionStatus = parsedData.data?.transaction?.status;
 
-                await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
-                console.log(`[WEBHOOK] Plano ativado para ${payment.user.storeName} via Webhook!`);
+            if (innerStatus === 'paid' || transactionStatus === 'completed') {
+                if (payment.status !== 'approved') {
+                    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
+                    
+                    await prisma.$transaction([
+                        prisma.user.update({
+                            where: { id: payment.userId },
+                            data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt }
+                        }),
+                        prisma.payment.update({
+                            where: { id: payment.id },
+                            data: { status: 'approved' }
+                        })
+                    ]);
+
+                    await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
+                    console.log(`[WEBHOOK] Plano ativado com sucesso para ${payment.user.storeName}`);
+                }
+            } else {
+                console.log(`[WEBHOOK] Alarme Falso: Evento success recebido mas transação não está paid/completed.`);
             }
         } 
-        else if (failedEvents.includes(eventName.toLowerCase())) {
+        // --- BLINDAGEM DE FALHA ---
+        else if (eventName === 'payment.failed') {
             if (payment.status !== 'rejected') {
                 await prisma.payment.update({
                     where: { id: payment.id },
                     data: { status: 'rejected', rejectionReason: parsedData.data?.error || 'Recusado/Cancelado no Gateway.' }
                 });
-                console.log(`[WEBHOOK] Pagamento rejeitado para: ${gatewayId}`);
             }
         }
 
-        // Resposta obrigatória 200 OK para o Gateway parar de reenviar o Webhook
-        res.status(200).json({ status: 'success', message: 'Processado com sucesso.' });
+        res.status(200).json({ status: 'success', message: 'Processado.' });
 
     } catch (error) {
         console.error('[WEBHOOK] Erro interno:', error.message);

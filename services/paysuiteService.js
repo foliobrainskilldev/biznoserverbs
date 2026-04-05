@@ -10,12 +10,11 @@ const getHeaders = () => ({
 exports.createPaymentRequest = async (amount, reference, description, method, returnUrl) => {
     const endpoint = `${config.paysuite.apiUrl}/payments`;
     
-    // De acordo com a documentação da API PaySuite
     const payload = {
-        amount: Number(amount), // Garante formato numérico
-        reference: String(reference).substring(0, 50), // Máx 50 caracteres
-        description: String(description).substring(0, 125), // Máx 125 caracteres
-        method: method, // mpesa, emola ou credit_card
+        amount: Number(amount),
+        reference: String(reference).substring(0, 50),
+        description: String(description).substring(0, 125),
+        method: method,
         return_url: returnUrl
     };
 
@@ -28,6 +27,7 @@ exports.createPaymentRequest = async (amount, reference, description, method, re
         
         const data = await response.json();
 
+        // O Gateway retorna status "error" no wrapper principal em caso de falha
         if (!response.ok || data.status === 'error') {
             console.error('[PAYSUITE_REJEITADO_DETALHES]:', JSON.stringify(data));
             throw new Error(data.message || `Erro da PaySuite: HTTP ${response.status}`);
