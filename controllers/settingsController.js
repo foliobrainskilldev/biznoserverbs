@@ -3,7 +3,7 @@ const prisma = require('../config/db');
 const { handleError, sanitizeStoreNameForURL } = require('../utils/helpers');
 const cloudinary = require('cloudinary').v2;
 const { config } = require('../config/setup');
-const paysuiteService = require('../services/paysuiteService');
+const debitoService = require('../services/debitoService');
 const mailer = require('../services/mailer');
 
 cloudinary.config(config.cloudinary);
@@ -246,7 +246,7 @@ exports.updateContacts = async (req, res) => {
 };
 
 exports.initiatePlanPayment = async (req, res) => {
-    const { planId, provider } = req.body; 
+    const { planId, provider, phone } = req.body; 
     
     if (!planId || !provider) {
         return res.status(400).json({ success: false, message: 'ID do plano e provedor são obrigatórios.' });
@@ -266,11 +266,16 @@ exports.initiatePlanPayment = async (req, res) => {
 
         const returnUrl = config.urls.paymentReturnUrl || `${config.urls.appUrl}/dash/planos.html`; 
 
-        const paysuiteResponse = await paysuiteService.createPaymentRequest(
+        // Se for mobile money e não enviou telefone, tenta usar o whatsapp do perfil
+        let paymentPhone = phone || req.user.whatsapp;
+
+        const debitoResponse = await debitoService.createPaymentRequest(
             plan.price,
             internalReference,
             description,
             provider.toLowerCase(),
+            paymentPhone,
+            req.user.email,
             returnUrl
         );
         
@@ -280,20 +285,21 @@ exports.initiatePlanPayment = async (req, res) => {
                 planId: planId,
                 status: 'pending',
                 provider: provider.toLowerCase(),
-                gatewayReference: paysuiteResponse.data.id,
+                gatewayReference: debitoResponse.reference,
                 proof: { internalReference: internalReference }
             }
         });
         
         res.status(200).json({ 
             success: true, 
-            message: 'A redirecionar...',
-            checkoutUrl: paysuiteResponse.data.checkout_url,
-            reference: paysuiteResponse.data.id
+            message: provider === 'credit_card' ? 'A redirecionar...' : 'Verifique o seu telemóvel para confirmar o pagamento.',
+            checkoutUrl: debitoResponse.checkout_url,
+            reference: debitoResponse.reference,
+            isPush: provider !== 'credit_card'
         });
     } catch (error) {
-        console.error('Erro PaySuite:', error.message);
-        return res.status(400).json({ success: false, message: `Erro PaySuite: ${error.message}` });
+        console.error('Erro Débito API:', error.message);
+        return res.status(400).json({ success: false, message: `Erro no pagamento: ${error.message}` });
     }
 };
 
@@ -318,31 +324,19 @@ exports.verifyPaymentStatus = async (req, res) => {
             return res.status(200).json({ success: true, status: 'approved', message: 'Pagamento processado com sucesso.' });
         }
 
-        const paysuiteStatus = await paysuiteService.getPaymentStatus(payment.gatewayReference);
+        const debitoStatus = await debitoService.getPaymentStatus(payment.gatewayReference);
         
-        // --- NOVO SISTEMA BLINDADO PARA EVITAR FALSOS POSITIVOS ---
         let finalStatus = 'pending';
-        let psError = 'Aguardando pagamento ou cancelado.';
+        let apiError = 'Aguardando pagamento ou cancelado.';
 
-        // A API encapsula a resposta num objeto 'data'
-        const paymentData = paysuiteStatus.data;
-
-        if (paymentData) {
-            // Extrai rigorosamente apenas os campos internos do pagamento
-            const mainStatus = paymentData.status ? String(paymentData.status).toLowerCase() : 'pending';
+        if (debitoStatus) {
+            const mainStatus = debitoStatus.status ? String(debitoStatus.status).toUpperCase() : 'PENDING';
             
-            // Só aprovamos se os dados reais apontarem 'paid' ou 'completed'
-            if (mainStatus === 'paid' || mainStatus === 'completed') {
+            if (mainStatus === 'SUCCESS' || mainStatus === 'COMPLETED' || mainStatus === 'PAID') {
                 finalStatus = 'approved';
-            } else if (mainStatus === 'failed' || mainStatus === 'cancelled' || mainStatus === 'declined') {
+            } else if (mainStatus === 'FAILED' || mainStatus === 'CANCELLED' || mainStatus === 'REJECTED') {
                 finalStatus = 'rejected';
-                psError = paymentData.error || 'Cancelado/Recusado.';
-            }
-            
-            // Fallback seguro: Verifica se há transação (ex: M-Pesa concluído)
-            if (paymentData.transaction && paymentData.transaction.status) {
-                const txStatus = String(paymentData.transaction.status).toLowerCase();
-                if (txStatus === 'completed') finalStatus = 'approved';
+                apiError = debitoStatus.message || 'Cancelado/Recusado pela operadora.';
             }
         }
 
@@ -366,12 +360,11 @@ exports.verifyPaymentStatus = async (req, res) => {
         } else if (finalStatus === 'rejected') {
             await prisma.payment.update({ 
                 where: { id: payment.id }, 
-                data: { status: 'rejected', rejectionReason: psError } 
+                data: { status: 'rejected', rejectionReason: apiError } 
             });
-            return res.status(200).json({ success: true, status: 'rejected', message: `Pagamento falhou: ${psError}` });
+            return res.status(200).json({ success: true, status: 'rejected', message: `Pagamento falhou: ${apiError}` });
         }
 
-        // Se for qualquer outra coisa (inclusive 'success' sem paid), mantemos pending
         res.status(200).json({ 
             success: true, 
             status: 'pending', 
@@ -393,24 +386,15 @@ exports.getPaymentHistory = async (req, res) => {
 
         let statusUpdated = false;
         
-        // Loop otimizado com a mesma blindagem de segurança
         for (let payment of history) {
             if (payment.status === 'pending') {
                 try {
-                    const psStatus = await paysuiteService.getPaymentStatus(payment.gatewayReference);
-                    const pData = psStatus.data;
+                    const dStatus = await debitoService.getPaymentStatus(payment.gatewayReference);
                     
-                    if (pData) {
-                        const mStatus = pData.status ? String(pData.status).toLowerCase() : 'pending';
-                        let isPaid = (mStatus === 'paid' || mStatus === 'completed');
+                    if (dStatus) {
+                        const mStatus = dStatus.status ? String(dStatus.status).toUpperCase() : 'PENDING';
                         
-                        if (pData.transaction && pData.transaction.status) {
-                            if (String(pData.transaction.status).toLowerCase() === 'completed') {
-                                isPaid = true;
-                            }
-                        }
-
-                        if (isPaid) {
+                        if (mStatus === 'SUCCESS' || mStatus === 'COMPLETED' || mStatus === 'PAID') {
                             const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
                             await prisma.$transaction([
                                 prisma.user.update({ where: { id: payment.userId }, data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt } }),
@@ -418,7 +402,7 @@ exports.getPaymentHistory = async (req, res) => {
                             ]);
                             payment.status = 'approved';
                             statusUpdated = true;
-                        } else if (mStatus === 'failed' || mStatus === 'cancelled') {
+                        } else if (mStatus === 'FAILED' || mStatus === 'CANCELLED' || mStatus === 'REJECTED') {
                             await prisma.payment.update({ where: { id: payment.id }, data: { status: 'rejected' } });
                             payment.status = 'rejected';
                             statusUpdated = true;

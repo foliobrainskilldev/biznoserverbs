@@ -26,11 +26,15 @@ const config = {
     // Variáveis restritas do CORS
     corsOrigins: corsOrigins,
     
-    // Configurações exatas da PaySuite e URLs sugeridas
-    paysuite: {
-        apiUrl: process.env.PAYSUITE_API_BASE_URL || 'https://paysuite.tech/api/v1',
-        token: process.env.PAYSUITE_API_TOKEN,
-        webhookSecret: process.env.PAYSUITE_WEBHOOK_SECRET
+    // Configurações exatas da Débito API (Agora com suporte a múltiplas carteiras)
+    debito: {
+        apiUrl: process.env.DEBITO_API_BASE_URL || 'https://api.debito.co.mz/api/v1',
+        token: process.env.DEBITO_API_TOKEN,
+        wallets: {
+            mpesa: process.env.DEBITO_WALLET_MPESA,
+            emola: process.env.DEBITO_WALLET_EMOLA,
+            credit_card: process.env.DEBITO_WALLET_CARD
+        }
     },
     urls: {
         appUrl: process.env.APP_URL,

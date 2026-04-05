@@ -10,15 +10,12 @@ const app = express();
 
 const corsOptions = {
     origin: function (origin, callback) {
-        // Permite ferramentas como Postman e requests server-to-server
         if (!origin) return callback(null, true);
 
-        // Se o ENV estiver definido com '*', permite tudo
         if (config.corsOrigins === '*') {
             return callback(null, true);
         }
 
-        // Validação Estrita via Variável de Ambiente
         const isEnvAllowed = Array.isArray(config.corsOrigins) && config.corsOrigins.includes(origin);
 
         if (isEnvAllowed) {
@@ -29,16 +26,16 @@ const corsOptions = {
         }
     },
     optionsSuccessStatus: 200,
-    credentials: true // Importante para requisições com headers de auth em alguns frontends
+    credentials: true 
 };
 
 app.use(cors(corsOptions));
 app.use(helmet());
 
-// Guardamos o rawBody apenas para a validação da assinatura da PaySuite
+// Guardamos o rawBody apenas para a validação da assinatura da Débito API
 app.use(express.json({
     verify: (req, res, buf) => {
-        if (req.originalUrl.includes('/webhooks/paysuite')) {
+        if (req.originalUrl.includes('/webhooks/debito')) {
             req.rawBody = buf.toString();
         }
     }
