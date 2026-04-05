@@ -9,14 +9,6 @@ const corsOrigins = rawFrontendUrl.trim() === '*'
     ? '*' 
     : rawFrontendUrl.split(',').map(u => u.trim());
 
-// Sanitização robusta da URL da Débito com a BASE URL OFICIAL
-let rawDebitoUrl = (process.env.DEBITO_API_BASE_URL || 'https://my.debito.co.mz').trim();
-if (!rawDebitoUrl.startsWith('http')) {
-    rawDebitoUrl = `https://${rawDebitoUrl}`;
-}
-// Remove a barra final se existir para evitar duplicação (ex: https://my.debito.co.mz//api/...)
-rawDebitoUrl = rawDebitoUrl.replace(/\/$/, '');
-
 const config = {
     port: process.env.PORT || 3000,
     jwtSecret: process.env.JWT_SECRET,
@@ -34,15 +26,11 @@ const config = {
     // Variáveis restritas do CORS
     corsOrigins: corsOrigins,
     
-    // Configurações exatas da Débito API
-    debito: {
-        apiUrl: rawDebitoUrl,
-        token: process.env.DEBITO_API_TOKEN,
-        wallets: {
-            mpesa: process.env.DEBITO_WALLET_MPESA,
-            emola: process.env.DEBITO_WALLET_EMOLA,
-            credit_card: process.env.DEBITO_WALLET_CARD
-        }
+    // Configurações exatas da PaySuite e URLs sugeridas
+    paysuite: {
+        apiUrl: process.env.PAYSUITE_API_BASE_URL || 'https://paysuite.tech/api/v1',
+        token: process.env.PAYSUITE_API_TOKEN,
+        webhookSecret: process.env.PAYSUITE_WEBHOOK_SECRET
     },
     urls: {
         appUrl: process.env.APP_URL,

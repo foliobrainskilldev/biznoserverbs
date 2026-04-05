@@ -1,85 +1,104 @@
 // Ficheiro: src/controllers/webhookController.js
+const crypto = require('crypto');
 const prisma = require('../config/db');
 const mailer = require('../services/mailer');
-const debitoService = require('../services/debitoService');
+const { config } = require('../config/setup');
 
-exports.handleDebitoWebhook = async (req, res) => {
-    // 1. O GATILHO INSEGURO (Trigger)
-    const payload = req.body;
-    const debitoReference = payload.debito_reference || payload.transaction_id;
+exports.handlePaysuiteWebhook = async (req, res) => {
+    const signature = req.headers['x-webhook-signature'];
+    const secret = config.paysuite.webhookSecret;
 
-    if (!debitoReference) {
-        console.warn('[WEBHOOK] Recebido POST sem referência. Ignorado.');
-        return res.status(400).json({ status: 'error', message: 'Referência ausente no payload.' });
+    if (!signature || !secret) {
+        console.error('[WEBHOOK] Assinatura ou secret ausente no .env.');
+        return res.status(400).json({ status: 'error', message: 'Falta de autenticação no servidor.' });
     }
 
-    console.log(`[WEBHOOK] Despertador acionado para a referência: ${debitoReference}. A iniciar verificação side-channel...`);
+    const payloadString = req.rawBody || JSON.stringify(req.body);
+
+    if (!payloadString) {
+        return res.status(400).json({ status: 'error', message: 'Payload inválido.' });
+    }
+
+    // Validação de Segurança
+    try {
+        const calculatedSignature = crypto.createHmac('sha256', secret)
+                                          .update(payloadString)
+                                          .digest('hex');
+
+        if (signature !== calculatedSignature) {
+            return res.status(403).json({ status: 'error', message: 'Assinatura inválida.' });
+        }
+    } catch (cryptoError) {
+        return res.status(403).json({ status: 'error', message: 'Erro de validação.' });
+    }
 
     try {
-        // 2. A REQUISIÇÃO DE VERIFICAÇÃO (Side-Channel)
-        const debitoStatus = await debitoService.getPaymentStatus(debitoReference);
+        const parsedData = typeof req.body === 'object' ? req.body : JSON.parse(payloadString);
         
-        if (!debitoStatus) {
-            return res.status(404).json({ status: 'error', message: 'Transação não encontrada no provedor.' });
-        }
+        // Retiramos a tolerância de eventos globais. Só processamos se for 'payment.success'.
+        const eventName = parsedData.event; 
+        const gatewayId = parsedData.data?.id; 
+        const gatewayReference = parsedData.data?.reference; 
 
-        // Extraímos o status REAL vindo da nossa requisição autenticada
-        const mainStatus = debitoStatus.status ? String(debitoStatus.status).toUpperCase() : 'PENDING';
+        console.log(`[WEBHOOK] Recebido evento: ${eventName} para ID: ${gatewayId}`);
 
-        // 3. VALIDAÇÃO DO STATUS E IDEMPOTÊNCIA
         const payment = await prisma.payment.findFirst({
-            where: { gatewayReference: String(debitoReference) },
+            where: { 
+                OR: [
+                    { gatewayReference: gatewayId },
+                    { gatewayReference: gatewayReference }
+                ]
+            },
             include: { user: true, plan: true }
         });
 
         if (!payment) {
-            return res.status(200).json({ status: 'success', message: 'Ignorado. Transação não pertence a este sistema.' });
+            return res.status(200).json({ status: 'success', message: 'Ignorado. Pagamento não pertence a este sistema.' });
         }
 
-        // Idempotência: Previne ataques de "replay" ou duplicação de créditos
-        if (payment.status === 'approved' || payment.status === 'rejected') {
-            console.log(`[WEBHOOK] Transação ${debitoReference} já estava processada (${payment.status}).`);
-            return res.status(200).json({ status: 'success', message: 'Transação já processada anteriormente.' });
-        }
-
-        // 4. COMMIT DE ATUALIZAÇÃO
-        if (mainStatus === 'SUCCESS' || mainStatus === 'COMPLETED' || mainStatus === 'PAID') {
-            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
+        // --- BLINDAGEM DE SUCESSO ---
+        if (eventName === 'payment.success') {
             
-            await prisma.$transaction([
-                prisma.user.update({
-                    where: { id: payment.userId },
-                    data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt }
-                }),
-                prisma.payment.update({
-                    where: { id: payment.id },
-                    data: { status: 'approved' }
-                })
-            ]);
+            // Verificação dupla: O dinheiro realmente entrou?
+            const innerStatus = parsedData.data?.status;
+            const transactionStatus = parsedData.data?.transaction?.status;
 
-            await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
-            console.log(`[WEBHOOK SEGURO] Pagamento confirmado e Plano ativado para ${payment.user.storeName}`);
-        
+            if (innerStatus === 'paid' || transactionStatus === 'completed') {
+                if (payment.status !== 'approved') {
+                    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
+                    
+                    await prisma.$transaction([
+                        prisma.user.update({
+                            where: { id: payment.userId },
+                            data: { planId: payment.planId, planStatus: 'active', planExpiresAt: expiresAt }
+                        }),
+                        prisma.payment.update({
+                            where: { id: payment.id },
+                            data: { status: 'approved' }
+                        })
+                    ]);
+
+                    await mailer.sendPaymentApprovedEmail(payment.user.email, payment.user.storeName, payment.plan.name);
+                    console.log(`[WEBHOOK] Plano ativado com sucesso para ${payment.user.storeName}`);
+                }
+            } else {
+                console.log(`[WEBHOOK] Alarme Falso: Evento success recebido mas transação não está paid/completed.`);
+            }
         } 
-        else if (mainStatus === 'FAILED' || mainStatus === 'CANCELLED' || mainStatus === 'REJECTED') {
-            await prisma.payment.update({
-                where: { id: payment.id },
-                data: { status: 'rejected', rejectionReason: debitoStatus.message || 'Recusado/Cancelado pela operadora.' }
-            });
-            console.log(`[WEBHOOK SEGURO] Pagamento rejeitado para ${payment.user.storeName}`);
+        // --- BLINDAGEM DE FALHA ---
+        else if (eventName === 'payment.failed') {
+            if (payment.status !== 'rejected') {
+                await prisma.payment.update({
+                    where: { id: payment.id },
+                    data: { status: 'rejected', rejectionReason: parsedData.data?.error || 'Recusado/Cancelado no Gateway.' }
+                });
+            }
         }
 
-        res.status(200).json({ status: 'success', message: 'Processado com segurança.' });
+        res.status(200).json({ status: 'success', message: 'Processado.' });
 
     } catch (error) {
-        console.error('[WEBHOOK SEGURO] Erro interno durante a verificação:', error.message);
-        
-        // Informa caso o provedor fique offline no exato momento do Webhook
-        if (error.message.includes('ENOTFOUND') || error.message.includes('fetch failed')) {
-             console.error('[CRÍTICO] A API da Débito está inacessível ou o URL está mal configurado no servidor.');
-        }
-
-        // Retornamos 500 para que a Débito tente enviar o webhook novamente mais tarde
-        res.status(500).json({ status: 'error', message: 'Erro interno durante a verificação. Tente de novo.' });
+        console.error('[WEBHOOK] Erro interno:', error.message);
+        res.status(500).json({ status: 'error', message: 'Erro interno.' });
     }
 };
