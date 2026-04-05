@@ -1,115 +1,107 @@
 // Ficheiro: src/services/debitoService.js
 const { config } = require('../config/setup');
 
-const getHeaders = () => {
-    if (!config.debito.token) {
-        throw new Error("O Token da Débito API não está configurado no ficheiro .env!");
-    }
-
-    return {
-        'Authorization': `Bearer ${config.debito.token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    };
-};
-
-exports.createPaymentRequest = async (amount, reference, description, method, phone, email, returnUrl) => {
-    const baseUrl = config.debito.apiUrl.replace(/\/$/, '');
-    const walletId = config.debito.wallets[method];
+class DebitoService {
     
-    if (!walletId) {
-        throw new Error(`Nenhuma carteira configurada no .env para o método: ${method}`);
-    }
-    
-    let endpoint = '';
-    let payload = {};
+    async createPaymentRequest(amount, reference, description, provider, phone, email, returnUrl) {
+        const baseUrl = config.debito.apiUrl;
+        const walletId = config.debito.wallets[provider];
 
-    let msisdn = phone ? phone.replace(/\D/g, '') : '';
-    if (msisdn.startsWith('258')) msisdn = msisdn.substring(3);
-
-    if (method === 'credit_card') {
-        endpoint = `${baseUrl}/wallets/${walletId}/card-payment`;
-        payload = {
-            amount: Number(amount),
-            reference_description: String(reference).substring(0, 100),
-            email: email || null,
-            phone: msisdn || null,
-            callback_url: returnUrl
-        };
-    } else if (method === 'mpesa' || method === 'emola') {
-        if (!msisdn) throw new Error("Número de telefone é obrigatório para pagamentos móveis.");
-        
-        endpoint = `${baseUrl}/wallets/${walletId}/c2b/${method}`;
-        payload = {
-            msisdn: msisdn,
-            amount: Number(amount),
-            reference_description: String(reference).substring(0, 32),
-            internal_notes: description
-        };
-    } else {
-        throw new Error("Método de pagamento não suportado.");
-    }
-
-    // ==========================================
-    // LOGS DE DEPURAÇÃO (DEBUG)
-    // ==========================================
-    console.log('\n--- INÍCIO DA CHAMADA À DÉBITO API ---');
-    console.log('ENDPOINT:', endpoint);
-    console.log('PAYLOAD:', JSON.stringify(payload));
-    console.log('HEADERS:', JSON.stringify({ ...getHeaders(), 'Authorization': 'Bearer ***OCULTO***' }));
-    console.log('--------------------------------------\n');
-
-    try {
-        const response = await fetch(endpoint, { 
-            method: 'POST', 
-            headers: getHeaders(), 
-            body: JSON.stringify(payload) 
-        });
-        
-        const data = await response.json();
-
-        if (!response.ok) {
-            console.error('[DEBITO_REJEITADO_DETALHES]:', JSON.stringify(data));
-            throw new Error(data.message || `Erro da Débito API: HTTP ${response.status}`);
+        if (!walletId) {
+            throw new Error(`O ID da carteira (Wallet ID) não está configurado para o método: ${provider}`);
         }
 
-        return {
-            reference: data.debito_reference || data.transaction_id || reference,
-            checkout_url: data.checkout_url || data.payment_url || null, 
-            status: data.status
-        }; 
-    } catch (error) {
-        let causaReal = error.message;
-        
-        // Extrai o motivo real da falha de rede (ex: ENOTFOUND, ECONNREFUSED, Invalid URL)
-        if (error.cause) {
-            causaReal += ` - Motivo: ${error.cause.code || error.cause.message}`;
-        }
-        
-        console.error(`\n[DEBITO_ERROR_FATAL]`, error);
-        throw new Error(causaReal);
-    }
-};
-
-exports.getPaymentStatus = async (debitoReference) => {
-    const baseUrl = config.debito.apiUrl.replace(/\/$/, '');
-    const endpoint = `${baseUrl}/transactions/${debitoReference}/status`;
-
-    try {
-        const response = await fetch(endpoint, { 
-            method: 'GET', 
-            headers: getHeaders() 
-        });
-        
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.message || `Erro da Débito API: HTTP ${response.status}`);
+        if (!config.debito.token) {
+            throw new Error('O Token da API Débito não está configurado no servidor.');
         }
 
-        return data; 
-    } catch (error) {
-        console.error(`[DEBITO_ERROR] Erro ao verificar pagamento ${debitoReference}:`, error.message);
-        throw error;
+        let endpoint = '';
+        let payload = {};
+
+        // Roteamento exato baseado na documentação oficial: https://my.debito.co.mz
+        if (provider === 'mpesa') {
+            endpoint = `/api/v1/wallets/${walletId}/c2b/mpesa`;
+            payload = {
+                msisdn: phone,
+                amount: parseFloat(amount),
+                reference_description: description.substring(0, 32)
+            };
+        } else if (provider === 'emola') {
+            endpoint = `/api/v1/wallets/${walletId}/c2b/emola`;
+            payload = {
+                msisdn: phone,
+                amount: parseFloat(amount),
+                reference_description: description.substring(0, 32)
+            };
+        } else if (provider === 'credit_card') {
+            endpoint = `/api/v1/wallets/${walletId}/card-payment`;
+            payload = {
+                amount: parseFloat(amount),
+                reference_description: description.substring(0, 100),
+                email: email || '',
+                phone: phone || '',
+                callback_url: returnUrl
+            };
+        }
+
+        const url = `${baseUrl}${endpoint}`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${config.debito.token}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                console.error('[DÉBITO API ERRO]', data);
+                throw new Error(data.message || 'Erro ao processar o pagamento na operadora.');
+            }
+
+            // Normaliza a resposta:
+            // O Cartão retorna um checkout_url para redirecionamento
+            // M-pesa e eMola retornam status PENDING para aguardar o PIN no telemóvel
+            return {
+                reference: data.debito_reference || reference,
+                checkout_url: data.checkout_url || null,
+                status: data.status || 'PENDING'
+            };
+
+        } catch (error) {
+            console.error('[DÉBITO FETCH ERROR]', error.message);
+            throw error;
+        }
     }
-};
+
+    async getPaymentStatus(debitoReference) {
+        const baseUrl = config.debito.apiUrl;
+        const url = `${baseUrl}/api/v1/transactions/${debitoReference}/status`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${config.debito.token}`
+                }
+            });
+
+            if (!response.ok) {
+                return null;
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('[DÉBITO STATUS ERROR]', error.message);
+            return null;
+        }
+    }
+}
+
+module.exports = new DebitoService();

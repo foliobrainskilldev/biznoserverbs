@@ -5,7 +5,6 @@ const debitoService = require('../services/debitoService');
 
 exports.handleDebitoWebhook = async (req, res) => {
     // 1. O GATILHO INSEGURO (Trigger)
-    // Recebemos o payload, mas NÃO confiamos em nenhum dado além da referência.
     const payload = req.body;
     const debitoReference = payload.debito_reference || payload.transaction_id;
 
@@ -18,7 +17,6 @@ exports.handleDebitoWebhook = async (req, res) => {
 
     try {
         // 2. A REQUISIÇÃO DE VERIFICAÇÃO (Side-Channel)
-        // Vamos à fonte da verdade (API da Débito) usando o nosso Token seguro.
         const debitoStatus = await debitoService.getPaymentStatus(debitoReference);
         
         if (!debitoStatus) {
@@ -29,7 +27,6 @@ exports.handleDebitoWebhook = async (req, res) => {
         const mainStatus = debitoStatus.status ? String(debitoStatus.status).toUpperCase() : 'PENDING';
 
         // 3. VALIDAÇÃO DO STATUS E IDEMPOTÊNCIA
-        // Buscamos a transação no nosso banco de dados usando a referência única
         const payment = await prisma.payment.findFirst({
             where: { gatewayReference: String(debitoReference) },
             include: { user: true, plan: true }
@@ -46,11 +43,9 @@ exports.handleDebitoWebhook = async (req, res) => {
         }
 
         // 4. COMMIT DE ATUALIZAÇÃO
-        // Só atualizamos se a API da Débito confirmar o sucesso
         if (mainStatus === 'SUCCESS' || mainStatus === 'COMPLETED' || mainStatus === 'PAID') {
             const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
             
-            // Transação atômica no banco de dados
             await prisma.$transaction([
                 prisma.user.update({
                     where: { id: payment.userId },
@@ -66,7 +61,6 @@ exports.handleDebitoWebhook = async (req, res) => {
             console.log(`[WEBHOOK SEGURO] Pagamento confirmado e Plano ativado para ${payment.user.storeName}`);
         
         } 
-        // Tratamento de falhas reais confirmadas pela API
         else if (mainStatus === 'FAILED' || mainStatus === 'CANCELLED' || mainStatus === 'REJECTED') {
             await prisma.payment.update({
                 where: { id: payment.id },
@@ -75,12 +69,17 @@ exports.handleDebitoWebhook = async (req, res) => {
             console.log(`[WEBHOOK SEGURO] Pagamento rejeitado para ${payment.user.storeName}`);
         }
 
-        // Retornamos 200 OK para a Débito parar de enviar o webhook
         res.status(200).json({ status: 'success', message: 'Processado com segurança.' });
 
     } catch (error) {
         console.error('[WEBHOOK SEGURO] Erro interno durante a verificação:', error.message);
+        
+        // Informa caso o provedor fique offline no exato momento do Webhook
+        if (error.message.includes('ENOTFOUND') || error.message.includes('fetch failed')) {
+             console.error('[CRÍTICO] A API da Débito está inacessível ou o URL está mal configurado no servidor.');
+        }
+
         // Retornamos 500 para que a Débito tente enviar o webhook novamente mais tarde
-        res.status(500).json({ status: 'error', message: 'Erro interno durante a verificação.' });
+        res.status(500).json({ status: 'error', message: 'Erro interno durante a verificação. Tente de novo.' });
     }
 };

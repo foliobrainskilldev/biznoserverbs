@@ -266,7 +266,6 @@ exports.initiatePlanPayment = async (req, res) => {
 
         const returnUrl = config.urls.paymentReturnUrl || `${config.urls.appUrl}/dash/planos.html`; 
 
-        // Se for mobile money e não enviou telefone, tenta usar o whatsapp do perfil
         let paymentPhone = phone || req.user.whatsapp;
 
         const debitoResponse = await debitoService.createPaymentRequest(
@@ -299,7 +298,14 @@ exports.initiatePlanPayment = async (req, res) => {
         });
     } catch (error) {
         console.error('Erro Débito API:', error.message);
-        return res.status(400).json({ success: false, message: `Erro no pagamento: ${error.message}` });
+        
+        // INTERCEPTA O ERRO ENOTFOUND AQUI PARA UMA MENSAGEM CLARA NO FRONTEND
+        let userFriendlyMessage = error.message;
+        if (error.message.includes('ENOTFOUND') || error.message.includes('fetch failed')) {
+            userFriendlyMessage = "O Servidor não conseguiu encontrar a operadora de pagamentos. Verifique se o DEBITO_API_BASE_URL no ficheiro .env está correto.";
+        }
+        
+        return res.status(400).json({ success: false, message: `Erro no pagamento: ${userFriendlyMessage}` });
     }
 };
 
@@ -409,7 +415,8 @@ exports.getPaymentHistory = async (req, res) => {
                         }
                     }
                 } catch (e) {
-                    console.error(`Sincronização em background falhou para ${payment.id}`);
+                    // Impede que erro na API quebre a página de histórico de quem está visualizando
+                    console.error(`Sincronização em background falhou para ${payment.id} - ${e.message}`);
                 }
             }
         }
