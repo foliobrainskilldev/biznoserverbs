@@ -1,14 +1,22 @@
 // Ficheiro: src/services/paysuiteService.js
 const { config } = require('../config/setup');
 
-const getHeaders = () => ({
-    'Authorization': `Bearer ${config.paysuite.token}`,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-});
+const getHeaders = () => {
+    // 1. Proteção: Verifica logo se o Token existe no .env para não enviar 'Bearer undefined'
+    if (!config.paysuite.token) {
+        throw new Error("O Token da PaySuite (PAYSUITE_API_TOKEN) não está configurado no ficheiro .env!");
+    }
+
+    return {
+        'Authorization': `Bearer ${config.paysuite.token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        // 2. Proteção: Finge ser um navegador/aplicação legítima para não ser bloqueado pela Firewall da PaySuite
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) BiznoApp/1.0'
+    };
+};
 
 exports.createPaymentRequest = async (amount, reference, description, method, returnUrl) => {
-    // Garante que não há uma barra "/" duplicada no final do URL configurado no .env
     const baseUrl = config.paysuite.apiUrl.replace(/\/$/, '');
     const endpoint = `${baseUrl}/payments`;
     
@@ -27,7 +35,6 @@ exports.createPaymentRequest = async (amount, reference, description, method, re
             body: JSON.stringify(payload) 
         });
         
-        // LÊ COMO TEXTO PRIMEIRO PARA EVITAR O ERRO "Unexpected token '<'"
         const responseText = await response.text();
         
         let data;
@@ -35,7 +42,7 @@ exports.createPaymentRequest = async (amount, reference, description, method, re
             data = JSON.parse(responseText);
         } catch (parseError) {
             console.error('[PAYSUITE_RESPOSTA_HTML_RECEBIDA]:', responseText);
-            throw new Error(`URL da API PaySuite incorreta ou Servidor da PaySuite indisponível. HTTP: ${response.status}`);
+            throw new Error(`Servidor da PaySuite bloqueou o pedido (HTTP ${response.status}). Verifique o seu PAYSUITE_API_TOKEN no .env.`);
         }
 
         if (!response.ok || data.status === 'error') {
@@ -46,7 +53,7 @@ exports.createPaymentRequest = async (amount, reference, description, method, re
         return data; 
     } catch (error) {
         console.error(`[PAYSUITE_ERROR] Erro ao criar pagamento:`, error.message);
-        throw error;
+        throw error; // Passa o erro exato para o Frontend exibir
     }
 };
 
@@ -67,7 +74,7 @@ exports.getPaymentStatus = async (paymentId) => {
             data = JSON.parse(responseText);
         } catch (parseError) {
             console.error('[PAYSUITE_RESPOSTA_HTML_RECEBIDA]:', responseText);
-            throw new Error(`URL da API PaySuite incorreta ou Servidor indisponível. HTTP: ${response.status}`);
+            throw new Error(`Servidor da PaySuite bloqueou o pedido (HTTP ${response.status}). Verifique o seu PAYSUITE_API_TOKEN no .env.`);
         }
 
         if (!response.ok || data.status === 'error') {
