@@ -28,7 +28,7 @@ const config = {
     
     // Configurações exatas da Débito API (Agora com suporte a múltiplas carteiras)
     debito: {
-        apiUrl: process.env.DEBITO_API_BASE_URL || 'https://api.debito.co.mz/api/v1',
+        apiUrl: process.env.DEBITO_API_BASE_URL || 'https://api.debito.co.mz',
         token: process.env.DEBITO_API_TOKEN,
         wallets: {
             mpesa: process.env.DEBITO_WALLET_MPESA,
