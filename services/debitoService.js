@@ -15,8 +15,6 @@ const getHeaders = () => {
 
 exports.createPaymentRequest = async (amount, reference, description, method, phone, email, returnUrl) => {
     const baseUrl = config.debito.apiUrl.replace(/\/$/, '');
-    
-    // Seleciona a carteira correta baseada no método de pagamento
     const walletId = config.debito.wallets[method];
     
     if (!walletId) {
@@ -26,7 +24,6 @@ exports.createPaymentRequest = async (amount, reference, description, method, ph
     let endpoint = '';
     let payload = {};
 
-    // Formatar número de telefone para M-Pesa/eMola (exigido pela Débito: 84xxxxxxx ou 85xxxxxxx)
     let msisdn = phone ? phone.replace(/\D/g, '') : '';
     if (msisdn.startsWith('258')) msisdn = msisdn.substring(3);
 
@@ -46,12 +43,21 @@ exports.createPaymentRequest = async (amount, reference, description, method, ph
         payload = {
             msisdn: msisdn,
             amount: Number(amount),
-            reference_description: String(reference).substring(0, 32), // Débito exige max 32 chars para mobile
+            reference_description: String(reference).substring(0, 32),
             internal_notes: description
         };
     } else {
         throw new Error("Método de pagamento não suportado.");
     }
+
+    // ==========================================
+    // LOGS DE DEPURAÇÃO (DEBUG)
+    // ==========================================
+    console.log('\n--- INÍCIO DA CHAMADA À DÉBITO API ---');
+    console.log('ENDPOINT:', endpoint);
+    console.log('PAYLOAD:', JSON.stringify(payload));
+    console.log('HEADERS:', JSON.stringify({ ...getHeaders(), 'Authorization': 'Bearer ***OCULTO***' }));
+    console.log('--------------------------------------\n');
 
     try {
         const response = await fetch(endpoint, { 
@@ -67,22 +73,19 @@ exports.createPaymentRequest = async (amount, reference, description, method, ph
             throw new Error(data.message || `Erro da Débito API: HTTP ${response.status}`);
         }
 
-        // Padronizar o retorno para o nosso Controller
         return {
             reference: data.debito_reference || data.transaction_id || reference,
             checkout_url: data.checkout_url || data.payment_url || null, 
             status: data.status
         }; 
     } catch (error) {
-        console.error(`[DEBITO_ERROR] Erro ao criar pagamento:`, error.message);
+        console.error(`\n[DEBITO_ERROR_FATAL] Falha na comunicação com a API:`, error);
         throw error;
     }
 };
 
 exports.getPaymentStatus = async (debitoReference) => {
     const baseUrl = config.debito.apiUrl.replace(/\/$/, '');
-    
-    // O endpoint de status da Débito não precisa de Wallet ID, apenas da referência
     const endpoint = `${baseUrl}/transactions/${debitoReference}/status`;
 
     try {
