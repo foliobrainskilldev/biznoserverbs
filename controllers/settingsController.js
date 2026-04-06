@@ -330,7 +330,7 @@ exports.verifyPaymentStatus = async (req, res) => {
                 finalStatus = 'approved';
             } else if (mainStatus === 'failed' || mainStatus === 'cancelled' || mainStatus === 'declined') {
                 finalStatus = 'rejected';
-                psError = paymentData.error || 'Falha na transação ou saldo insuficiente.';
+                psError = paymentData.error || 'Saldo insuficiente ou PIN incorreto.';
             }
             
             if (paymentData.transaction && paymentData.transaction.status) {
@@ -338,7 +338,7 @@ exports.verifyPaymentStatus = async (req, res) => {
                 if (txStatus === 'completed') finalStatus = 'approved';
                 if (txStatus === 'failed') {
                     finalStatus = 'rejected';
-                    psError = paymentData.transaction.error || 'O pagamento não foi autorizado pela operadora.';
+                    psError = paymentData.transaction.error || 'Saldo insuficiente ou transação cancelada pela operadora.';
                 }
             }
         }

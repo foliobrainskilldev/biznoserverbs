@@ -77,7 +77,7 @@ exports.handlePaysuiteWebhook = async (req, res) => {
             if (payment.status !== 'rejected') {
                 await prisma.payment.update({
                     where: { id: payment.id },
-                    data: { status: 'rejected', rejectionReason: parsedData.data?.error || 'Recusado ou sem saldo.' }
+                    data: { status: 'rejected', rejectionReason: parsedData.data?.error || 'Saldo insuficiente ou transação cancelada.' }
                 });
             }
         }
