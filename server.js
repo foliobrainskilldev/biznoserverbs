@@ -56,9 +56,9 @@ app.use((req, res, next) => {
     });
 });
 
-// --- NOVO: Middleware de Tratamento Global de Erros do Express ---
+
 app.use((err, req, res, next) => {
-    // 1. Captura erros de JSON malformado do body-parser
+    
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
         return res.status(400).json({ 
             success: false, 

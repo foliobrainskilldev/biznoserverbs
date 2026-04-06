@@ -1,22 +1,15 @@
 const prisma = require('../config/db');
 const cloudinary = require('cloudinary').v2;
-const {
-    config
-} = require('../config/setup');
+const { config } = require('../config/setup');
 const asyncHandler = require('../utils/asyncHandler');
-const {
-    calculateDiscountPercentage,
-    getPaginationParams
-} = require('../utils/helpers');
+const { calculateDiscountPercentage, getPaginationParams } = require('../utils/helpers');
 
 cloudinary.config(config.cloudinary);
 
 const checkPlanLimits = async (user, feature, options = {}) => {
     if (!user.planId) return false;
     const plan = await prisma.plan.findUnique({
-        where: {
-            id: user.planId
-        }
+        where: { id: user.planId }
     });
     if (!plan) return false;
 
@@ -24,9 +17,7 @@ const checkPlanLimits = async (user, feature, options = {}) => {
         case 'product':
             if (plan.productLimit === -1) return true;
             const productCount = await prisma.product.count({
-                where: {
-                    userId: user.id
-                }
+                where: { userId: user.id }
             });
             return productCount < plan.productLimit;
         case 'image':
@@ -38,9 +29,7 @@ const checkPlanLimits = async (user, feature, options = {}) => {
             const videoCount = await prisma.product.count({
                 where: {
                     userId: user.id,
-                    video: {
-                        not: null
-                    }
+                    video: { not: null }
                 }
             });
             return options.isExistingVideo ? videoCount <= plan.videoLimit : videoCount < plan.videoLimit;
@@ -68,27 +57,16 @@ exports.createProduct = asyncHandler(async (req, res) => {
     });
 
     const plan = await prisma.plan.findUnique({
-        where: {
-            id: req.user.planId
-        }
+        where: { id: req.user.planId }
     });
-    if (!await checkPlanLimits(req.user, 'image', {
-            newImageCount: req.files?.length || 0
-        })) {
+    if (!await checkPlanLimits(req.user, 'image', { newImageCount: req.files?.length || 0 })) {
         return res.status(403).json({
             success: false,
             message: `O plano permite no máximo ${plan.imageLimitPerProduct} imagens por produto.`
         });
     }
 
-    const {
-        name,
-        price,
-        category,
-        description,
-        stock,
-        originalPrice
-    } = req.body;
+    const { name, price, category, description, stock, originalPrice } = req.body;
     const isFeatured = req.body.isFeatured === 'true' || req.body.isFeatured === true;
 
     if (isFeatured && !await checkPlanLimits(req.user, 'featured_product')) return res.status(403).json({
@@ -142,25 +120,12 @@ exports.createProduct = asyncHandler(async (req, res) => {
 }, 'Erro ao criar produto.');
 
 exports.updateProduct = asyncHandler(async (req, res) => {
-    const {
-        id
-    } = req.params;
-    const {
-        name,
-        price,
-        category,
-        description,
-        stock,
-        originalPrice,
-        existingImages
-    } = req.body;
+    const { id } = req.params;
+    const { name, price, category, description, stock, originalPrice, existingImages } = req.body;
     const isFeatured = req.body.isFeatured === 'true' || req.body.isFeatured === true;
 
     const product = await prisma.product.findFirst({
-        where: {
-            id,
-            userId: req.user.id
-        }
+        where: { id, userId: req.user.id }
     });
     if (!product) return res.status(404).json({
         success: false,
@@ -210,9 +175,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
     }
 
     const updatedProduct = await prisma.product.update({
-        where: {
-            id
-        },
+        where: { id },
         data: {
             name,
             price: parseFloat(price),
@@ -234,10 +197,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
 
 exports.deleteProduct = asyncHandler(async (req, res) => {
     const product = await prisma.product.findFirst({
-        where: {
-            id: req.params.id,
-            userId: req.user.id
-        }
+        where: { id: req.params.id, userId: req.user.id }
     });
     if (!product) return res.status(404).json({
         success: false,
@@ -252,9 +212,7 @@ exports.deleteProduct = asyncHandler(async (req, res) => {
     });
 
     await prisma.product.delete({
-        where: {
-            id: product.id
-        }
+        where: { id: product.id }
     });
     res.status(200).json({
         success: true,
@@ -264,10 +222,7 @@ exports.deleteProduct = asyncHandler(async (req, res) => {
 
 exports.toggleProductFeature = asyncHandler(async (req, res) => {
     const product = await prisma.product.findFirst({
-        where: {
-            id: req.params.id,
-            userId: req.user.id
-        }
+        where: { id: req.params.id, userId: req.user.id }
     });
     if (!product) return res.status(404).json({
         success: false,
@@ -279,12 +234,8 @@ exports.toggleProductFeature = asyncHandler(async (req, res) => {
     });
 
     const updatedProduct = await prisma.product.update({
-        where: {
-            id: product.id
-        },
-        data: {
-            isFeatured: !product.isFeatured
-        }
+        where: { id: product.id },
+        data: { isFeatured: !product.isFeatured }
     });
     res.status(200).json({
         success: true,
@@ -295,18 +246,13 @@ exports.toggleProductFeature = asyncHandler(async (req, res) => {
 
 exports.addProductVideo = asyncHandler(async (req, res) => {
     const product = await prisma.product.findFirst({
-        where: {
-            id: req.params.id,
-            userId: req.user.id
-        }
+        where: { id: req.params.id, userId: req.user.id }
     });
     if (!product) return res.status(404).json({
         success: false,
         message: 'Produto não encontrado.'
     });
-    if (!await checkPlanLimits(req.user, 'video', {
-            isExistingVideo: !!product.video
-        })) return res.status(403).json({
+    if (!await checkPlanLimits(req.user, 'video', { isExistingVideo: !!product.video })) return res.status(403).json({
         success: false,
         message: 'Limite de vídeos atingido.'
     });
@@ -324,9 +270,7 @@ exports.addProductVideo = asyncHandler(async (req, res) => {
     });
 
     const updatedProduct = await prisma.product.update({
-        where: {
-            id: product.id
-        },
+        where: { id: product.id },
         data: {
             video: {
                 url: result.secure_url,
@@ -342,34 +286,21 @@ exports.addProductVideo = asyncHandler(async (req, res) => {
 }, 'Erro ao adicionar vídeo.');
 
 exports.getProducts = asyncHandler(async (req, res) => {
-    const {
-        skip,
-        take,
-        page,
-        limit
-    } = getPaginationParams(req, 50);
+    const { skip, take, page, limit } = getPaginationParams(req, 50);
     const [products, total] = await Promise.all([
         prisma.product.findMany({
-            where: {
-                userId: req.user.id
-            },
+            where: { userId: req.user.id },
             include: {
                 category: {
-                    select: {
-                        name: true
-                    }
+                    select: { name: true }
                 }
             },
-            orderBy: {
-                createdAt: 'desc'
-            },
+            orderBy: { createdAt: 'desc' },
             skip,
             take
         }),
         prisma.product.count({
-            where: {
-                userId: req.user.id
-            }
+            where: { userId: req.user.id }
         })
     ]);
     res.status(200).json({
@@ -404,12 +335,8 @@ exports.createCategory = asyncHandler(async (req, res) => {
 
 exports.getCategories = asyncHandler(async (req, res) => {
     const categories = await prisma.category.findMany({
-        where: {
-            userId: req.user.id
-        },
-        orderBy: {
-            name: 'asc'
-        }
+        where: { userId: req.user.id },
+        orderBy: { name: 'asc' }
     });
     res.status(200).json({
         success: true,
@@ -419,22 +346,15 @@ exports.getCategories = asyncHandler(async (req, res) => {
 
 exports.updateCategory = asyncHandler(async (req, res) => {
     const category = await prisma.category.findFirst({
-        where: {
-            id: req.params.id,
-            userId: req.user.id
-        }
+        where: { id: req.params.id, userId: req.user.id }
     });
     if (!category) return res.status(404).json({
         success: false,
         message: 'Categoria não encontrada.'
     });
     const updatedCategory = await prisma.category.update({
-        where: {
-            id: category.id
-        },
-        data: {
-            name: req.body.name
-        }
+        where: { id: category.id },
+        data: { name: req.body.name }
     });
     res.status(200).json({
         success: true,
@@ -445,10 +365,7 @@ exports.updateCategory = asyncHandler(async (req, res) => {
 
 exports.deleteCategory = asyncHandler(async (req, res) => {
     const category = await prisma.category.findFirst({
-        where: {
-            id: req.params.id,
-            userId: req.user.id
-        }
+        where: { id: req.params.id, userId: req.user.id }
     });
     if (!category) return res.status(404).json({
         success: false,
@@ -456,9 +373,7 @@ exports.deleteCategory = asyncHandler(async (req, res) => {
     });
 
     const productCount = await prisma.product.count({
-        where: {
-            categoryId: category.id
-        }
+        where: { categoryId: category.id }
     });
     if (productCount > 0) return res.status(400).json({
         success: false,
@@ -466,9 +381,7 @@ exports.deleteCategory = asyncHandler(async (req, res) => {
     });
 
     await prisma.category.delete({
-        where: {
-            id: category.id
-        }
+        where: { id: category.id }
     });
     res.status(200).json({
         success: true,
