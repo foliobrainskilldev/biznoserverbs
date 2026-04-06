@@ -1,4 +1,3 @@
-// Ficheiro: src/controllers/settingsController.js
 const prisma = require('../config/db');
 const { handleError, sanitizeStoreNameForURL } = require('../utils/helpers');
 const cloudinary = require('cloudinary').v2;
@@ -292,7 +291,6 @@ exports.initiatePlanPayment = async (req, res) => {
             reference: paysuiteResponse.data.id
         });
     } catch (error) {
-        console.error('Erro PaySuite:', error.message);
         return res.status(400).json({ success: false, message: `Erro PaySuite: ${error.message}` });
     }
 };
@@ -320,29 +318,28 @@ exports.verifyPaymentStatus = async (req, res) => {
 
         const paysuiteStatus = await paysuiteService.getPaymentStatus(payment.gatewayReference);
         
-        // --- NOVO SISTEMA BLINDADO PARA EVITAR FALSOS POSITIVOS ---
         let finalStatus = 'pending';
         let psError = 'Aguardando pagamento ou cancelado.';
 
-        // A API encapsula a resposta num objeto 'data'
         const paymentData = paysuiteStatus.data;
 
         if (paymentData) {
-            // Extrai rigorosamente apenas os campos internos do pagamento
             const mainStatus = paymentData.status ? String(paymentData.status).toLowerCase() : 'pending';
             
-            // Só aprovamos se os dados reais apontarem 'paid' ou 'completed'
             if (mainStatus === 'paid' || mainStatus === 'completed') {
                 finalStatus = 'approved';
             } else if (mainStatus === 'failed' || mainStatus === 'cancelled' || mainStatus === 'declined') {
                 finalStatus = 'rejected';
-                psError = paymentData.error || 'Cancelado/Recusado.';
+                psError = paymentData.error || 'Falha na transação ou saldo insuficiente.';
             }
             
-            // Fallback seguro: Verifica se há transação (ex: M-Pesa concluído)
             if (paymentData.transaction && paymentData.transaction.status) {
                 const txStatus = String(paymentData.transaction.status).toLowerCase();
                 if (txStatus === 'completed') finalStatus = 'approved';
+                if (txStatus === 'failed') {
+                    finalStatus = 'rejected';
+                    psError = paymentData.transaction.error || 'O pagamento não foi autorizado pela operadora.';
+                }
             }
         }
 
@@ -371,11 +368,10 @@ exports.verifyPaymentStatus = async (req, res) => {
             return res.status(200).json({ success: true, status: 'rejected', message: `Pagamento falhou: ${psError}` });
         }
 
-        // Se for qualquer outra coisa (inclusive 'success' sem paid), mantemos pending
         res.status(200).json({ 
             success: true, 
             status: 'pending', 
-            message: `Aguardando a confirmação do dinheiro...` 
+            message: `Aguardando a confirmação da operadora...` 
         });
 
     } catch (error) {
@@ -393,7 +389,6 @@ exports.getPaymentHistory = async (req, res) => {
 
         let statusUpdated = false;
         
-        // Loop otimizado com a mesma blindagem de segurança
         for (let payment of history) {
             if (payment.status === 'pending') {
                 try {
@@ -403,10 +398,13 @@ exports.getPaymentHistory = async (req, res) => {
                     if (pData) {
                         const mStatus = pData.status ? String(pData.status).toLowerCase() : 'pending';
                         let isPaid = (mStatus === 'paid' || mStatus === 'completed');
+                        let isFailed = (mStatus === 'failed' || mStatus === 'cancelled' || mStatus === 'declined');
                         
                         if (pData.transaction && pData.transaction.status) {
                             if (String(pData.transaction.status).toLowerCase() === 'completed') {
                                 isPaid = true;
+                            } else if (String(pData.transaction.status).toLowerCase() === 'failed') {
+                                isFailed = true;
                             }
                         }
 
@@ -418,14 +416,13 @@ exports.getPaymentHistory = async (req, res) => {
                             ]);
                             payment.status = 'approved';
                             statusUpdated = true;
-                        } else if (mStatus === 'failed' || mStatus === 'cancelled') {
+                        } else if (isFailed) {
                             await prisma.payment.update({ where: { id: payment.id }, data: { status: 'rejected' } });
                             payment.status = 'rejected';
                             statusUpdated = true;
                         }
                     }
                 } catch (e) {
-                    console.error(`Sincronização em background falhou para ${payment.id}`);
                 }
             }
         }
