@@ -20,9 +20,7 @@ const config = {
         api_key: process.env.CLOUDINARY_API_KEY,
         api_secret: process.env.CLOUDINARY_API_SECRET,
     },
-    
     corsOrigins: corsOrigins,
-    
     paysuite: {
         apiUrl: process.env.PAYSUITE_API_BASE_URL || 'https://paysuite.tech/api/v1',
         token: process.env.PAYSUITE_API_TOKEN,
@@ -64,7 +62,7 @@ const initializeDefaults = async () => {
         if (planCount === 0) {
             const defaultPlans = [
                 { name: 'Free', price: 0, productLimit: 5, imageLimitPerProduct: 1, videoLimit: 0, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'faqs', isVisible: true },
-                { name: 'Starter', price: 500, productLimit: 50, imageLimitPerProduct: 3, videoLimit: 0, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: false, hasSupport: 'basic', isVisible: true },
+                { name: 'Starter', price: 500, productLimit: 50, imageLimitPerProduct: 3, videoLimit: 0, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'basic', isVisible: true },
                 { name: 'Business', price: 1200, productLimit: 200, imageLimitPerProduct: 10, videoLimit: 30, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'priority', hasPromotionTimer: true, isVisible: true },
                 { name: 'Personalizado', price: 0, productLimit: -1, imageLimitPerProduct: -1, videoLimit: -1, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'dedicated', hasPromotionTimer: true, isCustom: true, isVisible: true }
             ];

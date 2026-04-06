@@ -34,7 +34,6 @@ const checkPlanLimits = async (user, feature, options = {}) => {
             });
             return options.isExistingVideo ? videoCount <= plan.videoLimit : videoCount < plan.videoLimit;
         case 'featured_product':
-            if (!plan.hasFeaturedProducts) return false;
             if (plan.name === 'Free') {
                 const featuredCount = await prisma.product.count({
                     where: {
@@ -42,7 +41,7 @@ const checkPlanLimits = async (user, feature, options = {}) => {
                         isFeatured: true
                     }
                 });
-                return featuredCount < 3;
+                return featuredCount < 5;
             }
             return true;
         default:
