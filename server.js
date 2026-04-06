@@ -1,10 +1,10 @@
-// Ficheiro: src/server.js
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const routes = require('./routes');
 const prisma = require('./config/db');
 const { config, initializeDefaults } = require('./config/setup');
+const { handleError } = require('./utils/helpers');
 
 const app = express();
 
@@ -35,7 +35,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(helmet());
 
-// Guardamos o rawBody apenas para a validação da assinatura da PaySuite
+// O rawBody apenas para a validação da assinatura da PaySuite
 app.use(express.json({
     verify: (req, res, buf) => {
         if (req.originalUrl.includes('/webhooks/paysuite')) {
@@ -45,7 +45,30 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
+// Registar as rotas da API
 app.use('/api', routes);
+
+
+app.use((req, res, next) => {
+    res.status(404).json({
+        success: false,
+        message: 'A rota solicitada não existe nesta API.'
+    });
+});
+
+// --- NOVO: Middleware de Tratamento Global de Erros do Express ---
+app.use((err, req, res, next) => {
+    // 1. Captura erros de JSON malformado do body-parser
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'JSON malformado enviado na requisição.' 
+        });
+    }
+    
+    
+    handleError(res, err, 'Ocorreu um erro interno no servidor (Global Handler).');
+});
 
 console.log('A ligar ao PostgreSQL...');
 

@@ -40,9 +40,24 @@ const sanitizeStoreNameForURL = (storeName) => {
         .replace(/[^a-z0-9]/g, '');
 };
 
+
+const getPlanExpirationDate = (days = 30) => {
+    return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+};
+
+
+const getPaginationParams = (req, defaultLimit = 20) => {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || defaultLimit;
+    const skip = (page - 1) * limit;
+    return { skip, take: limit, page, limit };
+};
+
 module.exports = {
     generateNumericCode,
     calculateDiscountPercentage,
     handleError,
     sanitizeStoreNameForURL,
+    getPlanExpirationDate,
+    getPaginationParams
 };
