@@ -1,4 +1,3 @@
-// Ficheiro: src/controllers/authController.js
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/db');
@@ -34,7 +33,6 @@ exports.registerUser = async (req, res) => {
         
         const hashedPassword = await bcrypt.hash(password, 12);
         const verificationCode = generateNumericCode().toString();
-        // Expira em 24h para dar tempo ao utilizador de clicar no botão do dashboard
         const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); 
 
         const freePlan = await prisma.plan.findUnique({ where: { name: 'Free' } });
@@ -56,9 +54,6 @@ exports.registerUser = async (req, res) => {
             }
         });
 
-        // NÃO ENVIAMOS O E-MAIL AQUI! O utilizador pede o e-mail no Dashboard.
-        
-        // Geramos o token para fazer login automático!
         const token = jwt.sign({ id: newUser.id, role: newUser.role }, config.jwtSecret, { expiresIn: config.jwtExpiresIn });
 
         res.status(201).json({ success: true, message: 'Conta criada com sucesso!', token, isVerified: false });
@@ -67,7 +62,6 @@ exports.registerUser = async (req, res) => {
     }
 };
 
-// ... Restante do ficheiro mantém-se igual (loginUser, verifyEmail, resendVerificationCode, etc)
 exports.loginUser = async (req, res) => {
     const { email, password } = req.body;
     try {

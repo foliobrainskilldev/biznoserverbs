@@ -1,4 +1,3 @@
-// Ficheiro: src/utils/helpers.js
 const prisma = require('../config/db');
 
 const generateNumericCode = (length = 6) => {
@@ -18,7 +17,6 @@ const calculateDiscountPercentage = (originalPrice, promotionalPrice) => {
 const handleError = (res, error, message, statusCode = 500) => {
     console.error(`[BIZNO_ERROR] ${new Date().toISOString()}: ${message}`, error);
     
-    // Regista o erro no BD
     prisma.systemLog.create({
         data: {
             level: 'error',

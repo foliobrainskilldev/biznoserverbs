@@ -1,4 +1,3 @@
-// Ficheiro: src/routes/index.js (ou apenas src/index.js dependendo da sua estrutura)
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -15,13 +14,9 @@ const webhookController = require('../controllers/webhookController');
 const { verifyUserToken, verifyAdminToken, checkPlanStatus } = require('../middlewares/authMiddleware');
 const { emailLimiter, loginLimiter, registerRules, loginRules, emailRules, resetPasswordRules, validate } = require('../middlewares/validators');
 
-// ==========================================
-// ROTA PARA O UPTIMEROBOT (MANTER ACORDADO)
-// ==========================================
 router.get('/ping', (req, res) => {
     res.status(200).json({ success: true, message: 'Servidor da Bizno acordado e a voar! 🚀' });
 });
-// ==========================================
 
 router.post('/register', registerRules(), validate, authController.registerUser);
 router.post('/login', loginRules(), validate, loginLimiter, authController.loginUser);

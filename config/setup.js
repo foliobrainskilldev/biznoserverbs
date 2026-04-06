@@ -1,9 +1,7 @@
-// Ficheiro: src/config/setup.js
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const prisma = require('./db');
 
-// Lê o frontend URL estritamente do ENV
 const rawFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 const corsOrigins = rawFrontendUrl.trim() === '*' 
     ? '*' 
@@ -23,10 +21,8 @@ const config = {
         api_secret: process.env.CLOUDINARY_API_SECRET,
     },
     
-    // Variáveis restritas do CORS
     corsOrigins: corsOrigins,
     
-    // Configurações exatas da PaySuite e URLs sugeridas
     paysuite: {
         apiUrl: process.env.PAYSUITE_API_BASE_URL || 'https://paysuite.tech/api/v1',
         token: process.env.PAYSUITE_API_TOKEN,
@@ -41,9 +37,7 @@ const config = {
 
 const initializeDefaults = async () => {
     try {
-        if (!config.adminEmail || !config.adminPassword) {
-            console.warn('AVISO: ADMIN_EMAIL/ADMIN_PASSWORD não definidos. Criação do Admin ignorada.');
-        } else {
+        if (config.adminEmail && config.adminPassword) {
             const adminExists = await prisma.user.findUnique({
                 where: { email: config.adminEmail }
             });
@@ -63,7 +57,6 @@ const initializeDefaults = async () => {
                         deliverySettings: {}
                     }
                 });
-                console.log('Conta de administrador padrão criada com sucesso.');
             }
         }
 
@@ -76,10 +69,8 @@ const initializeDefaults = async () => {
                 { name: 'Personalizado', price: 0, productLimit: -1, imageLimitPerProduct: -1, videoLimit: -1, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'dedicated', hasPromotionTimer: true, isCustom: true, isVisible: true }
             ];
             await prisma.plan.createMany({ data: defaultPlans });
-            console.log('Planos padrão criados com sucesso.');
         }
     } catch (error) {
-        console.error('Erro ao inicializar o Admin ou Planos:', error.message);
         throw error;
     }
 };

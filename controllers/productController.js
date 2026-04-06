@@ -1,4 +1,3 @@
-// Ficheiro: src/controllers/productController.js
 const prisma = require('../config/db');
 const { handleError, calculateDiscountPercentage } = require('../utils/helpers');
 const cloudinary = require('cloudinary').v2;
@@ -140,7 +139,6 @@ exports.deleteProduct = async (req, res) => {
     }
 };
 
-// As rotas de Categorias, Toggle Featured e Video permanecem idênticas em lógica (foram ligeiramente encurtadas na refatoração original, posso adicionar se desejares a listagem de categorias aqui, mas a lógica é a mesma de antes)
 exports.toggleProductFeature = async (req, res) => {
     try {
         const product = await prisma.product.findFirst({ where: { id: req.params.id, userId: req.user.id } });

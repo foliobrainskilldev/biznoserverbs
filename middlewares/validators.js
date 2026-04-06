@@ -1,9 +1,8 @@
-// Ficheiro: src/middlewares/validators.js
 const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 
 const emailLimiter = rateLimit({
-	windowMs: 60 * 60 * 1000, // 1 hora
+	windowMs: 60 * 60 * 1000,
 	max: 5,
 	message: { success: false, message: 'Muitos pedidos a partir deste IP, tente novamente numa hora.' },
 	standardHeaders: true,
@@ -11,7 +10,7 @@ const emailLimiter = rateLimit({
 });
 
 const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
+    windowMs: 15 * 60 * 1000,
     max: 10,
     message: { success: false, message: 'Muitas tentativas de login. Tente novamente em 15 minutos.'}
 });

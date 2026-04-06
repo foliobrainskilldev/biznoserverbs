@@ -1,4 +1,3 @@
-// Ficheiro: src/services/mailer.js
 const { Resend } = require('resend');
 const { config } = require('../config/setup');
 

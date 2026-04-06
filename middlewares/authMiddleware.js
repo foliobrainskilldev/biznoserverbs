@@ -1,4 +1,3 @@
-// Ficheiro: src/middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const { config } = require('../config/setup');
 const prisma = require('../config/db');
@@ -23,7 +22,6 @@ const verifyToken = async (req, res, next, requiredRole) => {
             return res.status(401).json({ success: false, message: 'Token inválido. Utilizador não encontrado.' });
         }
 
-        // Removemos dados sensíveis da sessão
         delete user.password;
         delete user.verificationCode;
         delete user.passwordResetCode;
@@ -32,7 +30,6 @@ const verifyToken = async (req, res, next, requiredRole) => {
              return res.status(403).json({ success: false, message: 'Acesso proibido. Permissões insuficientes.' });
         }
         
-        // BLOQUEIO REMOVIDO: Agora o utilizador pode aceder ao Dashboard mesmo com isVerified = false
         req.user = user;
         next();
 

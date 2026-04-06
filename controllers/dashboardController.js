@@ -1,4 +1,3 @@
-// Ficheiro: src/controllers/dashboardController.js
 const prisma = require('../config/db');
 const { handleError } = require('../utils/helpers');
 
@@ -79,7 +78,6 @@ exports.getStatisticsData = async (req, res) => {
             where: { userId, type: 'order', createdAt: { gte: new Date(new Date().setUTCHours(0,0,0,0)), lte: today } } 
         });
         
-        // CORREÇÃO APLICADA AQUI: Adicionado "new Date()" em volta das datas formatadas para não quebrar o Prisma
         const yesterdaysOrders = await prisma.interaction.count({ 
             where: { 
                 userId, 

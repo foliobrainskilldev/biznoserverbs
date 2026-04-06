@@ -1,4 +1,3 @@
-// Ficheiro: src/controllers/storeController.js
 const prisma = require('../config/db');
 const { handleError } = require('../utils/helpers');
 
@@ -61,7 +60,6 @@ exports.getPublicProductData = async (req, res) => {
     }
 };
 
-// FUNÇÃO QUE FALTAVA
 exports.getPlans = async (req, res) => {
     try {
         const plans = await prisma.plan.findMany({ where: { isVisible: true }, orderBy: { price: 'asc' } });
@@ -71,7 +69,6 @@ exports.getPlans = async (req, res) => {
     }
 };
 
-// FUNÇÃO QUE FALTAVA
 exports.logInteraction = async (req, res) => {
     try {
         const { storeOwnerId, type, details } = req.body;
@@ -80,7 +77,6 @@ exports.logInteraction = async (req, res) => {
         await prisma.interaction.create({ data: { userId: storeOwnerId, type, details } });
         res.status(200).json({ success: true, message: 'Interação registada.' });
     } catch (error) {
-        console.error("Erro ao registar interação:", error);
         res.status(200).json({ success: true, message: 'Interação não registada, mas a prosseguir.' });
     }
 };

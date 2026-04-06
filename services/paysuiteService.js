@@ -1,8 +1,6 @@
-// Ficheiro: src/services/paysuiteService.js
 const { config } = require('../config/setup');
 
 const getHeaders = () => {
-    // 1. Proteção: Verifica logo se o Token existe no .env para não enviar 'Bearer undefined'
     if (!config.paysuite.token) {
         throw new Error("O Token da PaySuite (PAYSUITE_API_TOKEN) não está configurado no ficheiro .env!");
     }
@@ -11,7 +9,6 @@ const getHeaders = () => {
         'Authorization': `Bearer ${config.paysuite.token}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        // 2. Proteção: Finge ser um navegador/aplicação legítima para não ser bloqueado pela Firewall da PaySuite
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) BiznoApp/1.0'
     };
 };
@@ -53,7 +50,7 @@ exports.createPaymentRequest = async (amount, reference, description, method, re
         return data; 
     } catch (error) {
         console.error(`[PAYSUITE_ERROR] Erro ao criar pagamento:`, error.message);
-        throw error; // Passa o erro exato para o Frontend exibir
+        throw error;
     }
 };
 
