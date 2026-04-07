@@ -61,6 +61,11 @@ const createEmailTemplate = (subject, title, bodyContent, button) => {
 };
 
 const sendEmail = async (to, subject, html) => {
+    if (!config.resendApiKey) {
+        console.error("🚨 [ERRO FATAL MAILER] A variável RESEND_API_KEY não foi encontrada no .env!");
+        return { success: false, error: { message: "Falta RESEND_API_KEY no .env" } };
+    }
+
     try {
         const { data, error } = await resend.emails.send({
             from: config.emailFrom,
@@ -70,12 +75,15 @@ const sendEmail = async (to, subject, html) => {
         });
         
         if (error) {
-            console.error(`[RESEND ERRO] Falha ao enviar para ${to}:`, error.message || error);
+            console.error(`🚨 [ERRO RESEND] Falha ao enviar e-mail para ${to}. Resposta da Resend:`, error);
+            return { success: false, error };
         } else {
-            console.log(`[RESEND SUCESSO] E-mail enviado para ${to}. ID: ${data.id}`);
+            console.log(`✅ [SUCESSO RESEND] E-mail enviado para ${to}. ID do E-mail: ${data.id}`);
+            return { success: true, data };
         }
-    } catch (error) {
-        console.error(`[ERRO INTERNO MAILER] Falha grave ao tentar enviar para ${to}:`, error.message || error);
+    } catch (err) {
+        console.error(`🚨 [ERRO INTERNO MAILER] Falha grave ao tentar comunicar com a Resend:`, err);
+        return { success: false, error: err };
     }
 };
 
@@ -86,7 +94,7 @@ const sendVerificationEmail = async (to, storeName, code) => {
         `<p>O seu catálogo online está quase pronto! Use o código abaixo para ativar a sua conta:</p>
          <p style="font-size: 24px; font-weight: bold; color: #0C2340; text-align: center; letter-spacing: 5px; margin: 20px 0;">${code}</p>`
     );
-    await sendEmail(to, 'Confirme a sua conta Bizno', html);
+    return await sendEmail(to, 'Confirme a sua conta Bizno', html);
 };
 
 const sendPasswordResetEmail = async (to, code) => {
@@ -96,7 +104,7 @@ const sendPasswordResetEmail = async (to, code) => {
         `<p>Use o código abaixo para criar uma nova senha:</p>
          <p style="font-size: 24px; font-weight: bold; color: #0C2340; text-align: center; letter-spacing: 5px; margin: 20px 0;">${code}</p>`
     );
-    await sendEmail(to, 'Redefinição de Senha - Bizno', html);
+    return await sendEmail(to, 'Redefinição de Senha - Bizno', html);
 };
 
 const sendPaymentApprovedEmail = async (to, storeName, planName) => {
@@ -106,7 +114,7 @@ const sendPaymentApprovedEmail = async (to, storeName, planName) => {
         `<p>O seu pagamento foi aprovado! O seu plano <strong>${planName}</strong> já está ativo.</p>`,
         { text: 'Acessar Dashboard', url: `${config.urls.appUrl}/dash/dashboard.html` }
     );
-    await sendEmail(to, `Pagamento Aprovado! Seu Plano ${planName} está Ativo`, html);
+    return await sendEmail(to, `Pagamento Aprovado! Seu Plano ${planName} está Ativo`, html);
 };
 
 const sendPaymentRejectedEmail = async (to, storeName, reason) => {
@@ -117,7 +125,7 @@ const sendPaymentRejectedEmail = async (to, storeName, reason) => {
          <p style="padding: 10px; background-color: #f9e3e3; border-left: 4px solid #d9534f; color: #d9534f;"><strong>${reason || 'Não especificado.'}</strong></p>`,
         { text: 'Tentar Novamente', url: `${config.urls.appUrl}/dash/planos.html` }
     );
-    await sendEmail(to, 'Problema no Pagamento - Bizno', html);
+    return await sendEmail(to, 'Problema no Pagamento - Bizno', html);
 };
 
 const sendGlobalAdminMessage = async (to, messageSubject, messageBody) => {
@@ -127,7 +135,7 @@ const sendGlobalAdminMessage = async (to, messageSubject, messageBody) => {
         `<p>Mensagem importante da equipe Bizno:</p>
          <div style="padding: 15px; background-color: #e7f3fe; border-left: 4px solid #2196F3; margin-top: 15px;">${messageBody}</div>`
     );
-    await sendEmail(to, messageSubject, html);
+    return await sendEmail(to, messageSubject, html);
 };
 
 module.exports = {

@@ -14,6 +14,15 @@ const webhookController = require('../controllers/webhookController');
 const { verifyUserToken, verifyAdminToken, checkPlanStatus } = require('../middlewares/authMiddleware');
 const { emailLimiter, loginLimiter, registerRules, loginRules, emailRules, resetPasswordRules, validate } = require('../middlewares/validators');
 
+// == ROTA DE DIAGNÓSTICO DE E-MAILS ==
+router.get('/test-email', async (req, res) => {
+    const mailer = require('../services/mailer');
+    // Para testar, digite no browser: http://O_SEU_DOMINIO/api/test-email?email=SEU_EMAIL_AQUI
+    const target = req.query.email || 'teste@exemplo.com';
+    const result = await mailer.sendVerificationEmail(target, 'Loja Teste', '123456');
+    res.json({ target, diagnosticResult: result });
+});
+
 router.get('/ping', (req, res) => {
     res.status(200).json({ success: true, message: 'Servidor da Bizno acordado e a voar! 🚀' });
 });
