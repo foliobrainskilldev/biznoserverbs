@@ -66,6 +66,9 @@ userProtectedRoutes.get('/dashboard', dashboardController.getDashboardData);
 userProtectedRoutes.get('/dashboard/charts', dashboardController.getDashboardChartData);
 userProtectedRoutes.get('/statistics', dashboardController.getStatisticsData);
 userProtectedRoutes.get('/orders', dashboardController.getOrders);
+
+userProtectedRoutes.put('/orders/:id/status', dashboardController.updateOrderStatus);
+
 userProtectedRoutes.get('/messages', dashboardController.getMessages);
 
 userProtectedRoutes.get('/products', productController.getProducts);

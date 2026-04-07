@@ -4,54 +4,18 @@ const asyncHandler = require('../utils/asyncHandler');
 exports.getDashboardData = asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const user = await prisma.user.findUnique({
-        where: {
-            id: userId
-        },
-        include: {
-            plan: true
-        }
+        where: { id: userId },
+        include: { plan: true }
     });
-    if (!user) return res.status(404).json({
-        success: false,
-        message: 'Utilizador não encontrado.'
-    });
+    if (!user) return res.status(404).json({ success: false, message: 'Utilizador não encontrado.' });
 
     const [productCount, categoryCount, promotionCount, orderCount, messageCount, totalVisits] = await Promise.all([
-        prisma.product.count({
-            where: {
-                userId
-            }
-        }),
-        prisma.category.count({
-            where: {
-                userId
-            }
-        }),
-        prisma.product.count({
-            where: {
-                userId,
-                promotion: {
-                    not: null
-                }
-            }
-        }),
-        prisma.interaction.count({
-            where: {
-                userId,
-                type: 'order'
-            }
-        }),
-        prisma.interaction.count({
-            where: {
-                userId,
-                type: 'message'
-            }
-        }),
-        prisma.visit.count({
-            where: {
-                userId
-            }
-        })
+        prisma.product.count({ where: { userId } }),
+        prisma.category.count({ where: { userId } }),
+        prisma.product.count({ where: { userId, promotion: { not: null } } }),
+        prisma.interaction.count({ where: { userId, type: 'order' } }),
+        prisma.interaction.count({ where: { userId, type: 'message' } }),
+        prisma.visit.count({ where: { userId } })
     ]);
 
     res.status(200).json({
@@ -81,23 +45,10 @@ exports.getDashboardChartData = asyncHandler(async (req, res) => {
 
     const [orders, visits] = await Promise.all([
         prisma.interaction.findMany({
-            where: {
-                userId,
-                type: 'order',
-                createdAt: {
-                    gte: sevenDaysAgo,
-                    lte: today
-                }
-            }
+            where: { userId, type: 'order', createdAt: { gte: sevenDaysAgo, lte: today } }
         }),
         prisma.visit.findMany({
-            where: {
-                userId,
-                createdAt: {
-                    gte: sevenDaysAgo,
-                    lte: today
-                }
-            }
+            where: { userId, createdAt: { gte: sevenDaysAgo, lte: today } }
         })
     ]);
 
@@ -110,9 +61,7 @@ exports.getDashboardChartData = asyncHandler(async (req, res) => {
     const ordersMap = countByDate(orders);
     const visitsMap = countByDate(visits);
 
-    const chartData = Array.from({
-        length: 7
-    }, (_, i) => {
+    const chartData = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(sevenDaysAgo);
         d.setDate(d.getDate() + i);
         const dateStr = d.toISOString().split('T')[0];
@@ -123,19 +72,12 @@ exports.getDashboardChartData = asyncHandler(async (req, res) => {
         };
     });
 
-    res.status(200).json({
-        success: true,
-        chartData
-    });
+    res.status(200).json({ success: true, chartData });
 }, 'Erro nos gráficos.');
 
 exports.getStatisticsData = asyncHandler(async (req, res) => {
     const userId = req.user.id;
-    const {
-        range,
-        startDate,
-        endDate
-    } = req.query;
+    const { range, startDate, endDate } = req.query;
 
     let start, end;
     const today = new Date();
@@ -144,24 +86,10 @@ exports.getStatisticsData = asyncHandler(async (req, res) => {
     yesterday.setDate(yesterday.getDate() - 1);
 
     const todaysOrders = await prisma.interaction.count({
-        where: {
-            userId,
-            type: 'order',
-            createdAt: {
-                gte: new Date(new Date().setUTCHours(0, 0, 0, 0)),
-                lte: today
-            }
-        }
+        where: { userId, type: 'order', createdAt: { gte: new Date(new Date().setUTCHours(0, 0, 0, 0)), lte: today } }
     });
     const yesterdaysOrders = await prisma.interaction.count({
-        where: {
-            userId,
-            type: 'order',
-            createdAt: {
-                gte: new Date(new Date(yesterday).setUTCHours(0, 0, 0, 0)),
-                lte: new Date(new Date(yesterday).setUTCHours(23, 59, 59, 999))
-            }
-        }
+        where: { userId, type: 'order', createdAt: { gte: new Date(new Date(yesterday).setUTCHours(0, 0, 0, 0)), lte: new Date(new Date(yesterday).setUTCHours(23, 59, 59, 999)) } }
     });
 
     switch (range) {
@@ -180,10 +108,7 @@ exports.getStatisticsData = asyncHandler(async (req, res) => {
             end.setUTCHours(23, 59, 59, 999);
             break;
         case 'custom':
-            if (!startDate || !endDate) return res.status(400).json({
-                success: false,
-                message: 'Filtro personalizado requer datas.'
-            });
+            if (!startDate || !endDate) return res.status(400).json({ success: false, message: 'Filtro personalizado requer datas.' });
             start = new Date(startDate);
             end = new Date(endDate);
             end.setUTCHours(23, 59, 59, 999);
@@ -196,37 +121,16 @@ exports.getStatisticsData = asyncHandler(async (req, res) => {
 
     const [orders, visits, topProducts] = await Promise.all([
         prisma.interaction.findMany({
-            where: {
-                userId,
-                type: 'order',
-                createdAt: {
-                    gte: start,
-                    lte: end
-                }
-            }
+            where: { userId, type: 'order', createdAt: { gte: start, lte: end } }
         }),
         prisma.visit.findMany({
-            where: {
-                userId,
-                createdAt: {
-                    gte: start,
-                    lte: end
-                }
-            }
+            where: { userId, createdAt: { gte: start, lte: end } }
         }),
         prisma.product.findMany({
-            where: {
-                userId
-            },
-            orderBy: {
-                viewCount: 'desc'
-            },
+            where: { userId },
+            orderBy: { viewCount: 'desc' },
             take: 5,
-            select: {
-                name: true,
-                viewCount: true,
-                images: true
-            }
+            select: { name: true, viewCount: true, images: true }
         })
     ]);
 
@@ -270,34 +174,80 @@ exports.getStatisticsData = asyncHandler(async (req, res) => {
     });
 }, 'Erro ao carregar dados de estatísticas.');
 
+// INTEGRAÇÃO: Oculta a META data antes de enviar para o Frontend
 exports.getOrders = asyncHandler(async (req, res) => {
     const orders = await prisma.interaction.findMany({
-        where: {
-            userId: req.user.id,
-            type: 'order'
-        },
-        orderBy: {
-            createdAt: 'desc'
+        where: { userId: req.user.id, type: 'order' },
+        orderBy: { createdAt: 'desc' }
+    });
+    
+    const formattedOrders = orders.map(order => {
+        const parts = order.details.split('\n\n===META===\n');
+        let status = 'pending';
+        if (parts[1]) {
+            try { status = JSON.parse(parts[1]).status; } catch(e){}
         }
+        return {
+            id: order.id,
+            createdAt: order.createdAt,
+            details: parts[0], // Esconde o JSON do frontend
+            status
+        };
     });
-    res.status(200).json({
-        success: true,
-        orders
-    });
+
+    res.status(200).json({ success: true, orders: formattedOrders });
 }, 'Erro ao buscar pedidos.');
+
+// INTEGRAÇÃO: Atualiza o status e deduz o estoque usando a META invisível
+exports.updateOrderStatus = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    const interaction = await prisma.interaction.findFirst({
+        where: { id, userId: req.user.id, type: 'order' }
+    });
+    
+    if (!interaction) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+    
+    const parts = interaction.details.split('\n\n===META===\n');
+    const displayDetails = parts[0];
+    let meta = { status: 'pending', items: [] };
+    
+    if (parts[1]) {
+        try { meta = JSON.parse(parts[1]); } catch(e){}
+    }
+    
+    if (meta.status === 'sold') {
+        return res.status(400).json({ success: false, message: 'Este pedido já foi marcado como vendido e o estoque já foi deduzido.' });
+    }
+    
+    // Se foi marcado como VENDIDO, abate do estoque
+    if (status === 'sold') {
+        for (const item of meta.items) {
+            if (item.id && item.quantity) {
+                await prisma.product.updateMany({
+                    where: { id: item.id, stock: { gte: item.quantity } },
+                    data: { stock: { decrement: item.quantity } }
+                });
+            }
+        }
+    }
+    
+    meta.status = status;
+    const newDetails = `${displayDetails}\n\n===META===\n${JSON.stringify(meta)}`;
+    
+    await prisma.interaction.update({
+        where: { id },
+        data: { details: newDetails }
+    });
+    
+    res.status(200).json({ success: true, message: 'Status atualizado com sucesso.' });
+}, 'Erro ao atualizar pedido.');
 
 exports.getMessages = asyncHandler(async (req, res) => {
     const messages = await prisma.interaction.findMany({
-        where: {
-            userId: req.user.id,
-            type: 'message'
-        },
-        orderBy: {
-            createdAt: 'desc'
-        }
+        where: { userId: req.user.id, type: 'message' },
+        orderBy: { createdAt: 'desc' }
     });
-    res.status(200).json({
-        success: true,
-        messages
-    });
+    res.status(200).json({ success: true, messages });
 }, 'Erro ao buscar mensagens.');
