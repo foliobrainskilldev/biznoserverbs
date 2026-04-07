@@ -533,12 +533,15 @@ exports.sendGlobalEmail = asyncHandler(async (req, res) => {
         message: 'Nenhum utilizador verificado.'
     });
 
-    const emailPromises = users.map(user => mailer.sendGlobalAdminMessage(user.email, subject, body));
-    await Promise.all(emailPromises);
+    
+    for (const user of users) {
+        await mailer.sendGlobalAdminMessage(user.email, subject, body);
+        await new Promise(resolve => setTimeout(resolve, 150)); // Pausa de 150ms entre cada e-mail
+    }
 
     res.status(200).json({
         success: true,
-        message: `Mensagem enviada para ${users.length} utilizadores.`
+        message: `Mensagem enviada para ${users.length} utilizadores de forma segura.`
     });
 }, 'Erro ao enviar mensagem global.');
 

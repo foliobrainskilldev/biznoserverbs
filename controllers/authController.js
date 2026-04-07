@@ -84,12 +84,16 @@ exports.registerUser = asyncHandler(async (req, res) => {
         }
     });
 
+    
+    await mailer.sendVerificationEmail(newUser.email, newUser.displayName, verificationCode);
+
     const token = jwt.sign({
         id: newUser.id,
         role: newUser.role
     }, config.jwtSecret, {
         expiresIn: config.jwtExpiresIn
     });
+    
     res.status(201).json({
         success: true,
         message: 'Conta criada com sucesso!',
@@ -235,6 +239,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
         });
         await mailer.sendPasswordResetEmail(user.email, code);
     }
+    // Retorna sempre sucesso por segurança
     res.status(200).json({
         success: true,
         message: 'Se existir conta, um código será enviado.'

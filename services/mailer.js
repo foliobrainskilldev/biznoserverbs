@@ -68,10 +68,14 @@ const sendEmail = async (to, subject, html) => {
             subject,
             html,
         });
-        if (error) console.error(`Erro Resend para ${to}:`, error);
-        else console.log(`E-mail enviado para ${to}. ID: ${data.id}`);
+        
+        if (error) {
+            console.error(`[RESEND ERRO] Falha ao enviar para ${to}:`, error.message || error);
+        } else {
+            console.log(`[RESEND SUCESSO] E-mail enviado para ${to}. ID: ${data.id}`);
+        }
     } catch (error) {
-        console.error(`Erro interno e-mail para ${to}:`, error);
+        console.error(`[ERRO INTERNO MAILER] Falha grave ao tentar enviar para ${to}:`, error.message || error);
     }
 };
 
@@ -100,7 +104,7 @@ const sendPaymentApprovedEmail = async (to, storeName, planName) => {
         `Pagamento Aprovado! Seu Plano ${planName} está Ativo`,
         'Pagamento Confirmado!',
         `<p>O seu pagamento foi aprovado! O seu plano <strong>${planName}</strong> já está ativo.</p>`,
-        { text: 'Acessar Dashboard', url: `${config.mainFrontendUrl}/dash/dashboard.html` }
+        { text: 'Acessar Dashboard', url: `${config.urls.appUrl}/dash/dashboard.html` }
     );
     await sendEmail(to, `Pagamento Aprovado! Seu Plano ${planName} está Ativo`, html);
 };
@@ -111,7 +115,7 @@ const sendPaymentRejectedEmail = async (to, storeName, reason) => {
         'Pagamento Recusado',
         `<p>O seu comprovativo ou transação foi recusado pelo motivo:</p>
          <p style="padding: 10px; background-color: #f9e3e3; border-left: 4px solid #d9534f; color: #d9534f;"><strong>${reason || 'Não especificado.'}</strong></p>`,
-        { text: 'Tentar Novamente', url: `${config.mainFrontendUrl}/dash/planos.html` }
+        { text: 'Tentar Novamente', url: `${config.urls.appUrl}/dash/planos.html` }
     );
     await sendEmail(to, 'Problema no Pagamento - Bizno', html);
 };
