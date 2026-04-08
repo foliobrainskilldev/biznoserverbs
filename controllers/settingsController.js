@@ -371,7 +371,9 @@ exports.initiatePlanPayment = asyncHandler(async (req, res) => {
     });
 
     const internalReference = `BIZ${req.user.id.substring(0, 4)}${Date.now()}`.toUpperCase();
-    const returnUrl = config.urls.paymentReturnUrl || `${config.urls.appUrl}/pages/dashboard/payment-success.html`;
+    const baseReturnUrl = config.urls.paymentReturnUrl || `${config.urls.appUrl}/pages/dashboard/payment-success.html`;
+    const separator = baseReturnUrl.includes('?') ? '&' : '?';
+    const returnUrl = `${baseReturnUrl}${separator}reference=${internalReference}`;
 
     const paysuiteResponse = await paysuiteService.createPaymentRequest(plan.price, internalReference, `Plano ${plan.name} - ${req.user.storeName}`, provider.toLowerCase(), returnUrl);
 
