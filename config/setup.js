@@ -14,7 +14,6 @@ const config = {
     adminEmail: process.env.ADMIN_EMAIL,
     adminPassword: process.env.ADMIN_PASSWORD,
     resendApiKey: process.env.RESEND_API_KEY,
-    // REMETENTE OFICIAL BIZNO
     emailFrom: process.env.EMAIL_FROM || 'Bizno <geral@bizno.store>',
     cloudinary: {
         cloud_name: process.env.CLOUDINARY_CLOUD_NAME,

@@ -371,7 +371,7 @@ exports.initiatePlanPayment = asyncHandler(async (req, res) => {
     });
 
     const internalReference = `BIZ${req.user.id.substring(0, 4)}${Date.now()}`.toUpperCase();
-    const returnUrl = config.urls.paymentReturnUrl || `${config.urls.appUrl}/dash/planos.html`;
+    const returnUrl = config.urls.paymentReturnUrl || `${config.urls.appUrl}/pages/dashboard/payment-success.html`;
 
     const paysuiteResponse = await paysuiteService.createPaymentRequest(plan.price, internalReference, `Plano ${plan.name} - ${req.user.storeName}`, provider.toLowerCase(), returnUrl);
 
@@ -432,7 +432,6 @@ exports.verifyPaymentStatus = asyncHandler(async (req, res) => {
         message: 'Pagamento processado com sucesso.'
     });
 
-    // Sincroniza via PaySuite encapsulado no service
     const finalStatus = await paymentService.syncPaymentStatusWithGateway(payment);
 
     if (finalStatus === 'approved') return res.status(200).json({

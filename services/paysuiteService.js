@@ -38,18 +38,15 @@ exports.createPaymentRequest = async (amount, reference, description, method, re
         try {
             data = JSON.parse(responseText);
         } catch (parseError) {
-            console.error('[PAYSUITE_RESPOSTA_HTML_RECEBIDA]:', responseText);
             throw new Error(`Servidor da PaySuite bloqueou o pedido (HTTP ${response.status}). Verifique o seu PAYSUITE_API_TOKEN no .env.`);
         }
 
         if (!response.ok || data.status === 'error') {
-            console.error('[PAYSUITE_REJEITADO_DETALHES]:', JSON.stringify(data));
             throw new Error(data.message || `Erro da PaySuite: HTTP ${response.status}`);
         }
 
         return data; 
     } catch (error) {
-        console.error(`[PAYSUITE_ERROR] Erro ao criar pagamento:`, error.message);
         throw error;
     }
 };
@@ -70,7 +67,6 @@ exports.getPaymentStatus = async (paymentId) => {
         try {
             data = JSON.parse(responseText);
         } catch (parseError) {
-            console.error('[PAYSUITE_RESPOSTA_HTML_RECEBIDA]:', responseText);
             throw new Error(`Servidor da PaySuite bloqueou o pedido (HTTP ${response.status}). Verifique o seu PAYSUITE_API_TOKEN no .env.`);
         }
 
@@ -80,7 +76,6 @@ exports.getPaymentStatus = async (paymentId) => {
 
         return data; 
     } catch (error) {
-        console.error(`[PAYSUITE_ERROR] Erro ao verificar pagamento ${paymentId}:`, error.message);
         throw error;
     }
 };
