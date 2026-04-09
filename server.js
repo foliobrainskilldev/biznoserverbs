@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
 const prisma = require('./config/db');
 const { config, initializeDefaults } = require('./config/setup');
@@ -8,17 +9,25 @@ const { handleError } = require('./utils/helpers');
 
 const app = express();
 
+const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 500,
+    message: {
+        success: false,
+        message: 'Muitos pedidos a partir deste IP. Tente novamente mais tarde.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 const corsOptions = {
     origin: function (origin, callback) {
-        // Permite ferramentas como Postman e requests server-to-server
         if (!origin) return callback(null, true);
 
-        // Se o ENV estiver definido com '*', permite tudo
         if (config.corsOrigins === '*') {
             return callback(null, true);
         }
 
-        // Validação Estrita via Variável de Ambiente
         const isEnvAllowed = Array.isArray(config.corsOrigins) && config.corsOrigins.includes(origin);
 
         if (isEnvAllowed) {
@@ -29,13 +38,13 @@ const corsOptions = {
         }
     },
     optionsSuccessStatus: 200,
-    credentials: true // Importante para requisições com headers de auth em alguns frontends
+    credentials: true
 };
 
+app.use(generalLimiter);
 app.use(cors(corsOptions));
 app.use(helmet());
 
-// O rawBody apenas para a validação da assinatura da PaySuite
 app.use(express.json({
     verify: (req, res, buf) => {
         if (req.originalUrl.includes('/webhooks/paysuite')) {
@@ -45,9 +54,7 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// Registar as rotas da API
 app.use('/api', routes);
-
 
 app.use((req, res, next) => {
     res.status(404).json({
@@ -56,17 +63,13 @@ app.use((req, res, next) => {
     });
 });
 
-
 app.use((err, req, res, next) => {
-    
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
         return res.status(400).json({ 
             success: false, 
             message: 'JSON malformado enviado na requisição.' 
         });
     }
-    
-    
     handleError(res, err, 'Ocorreu um erro interno no servidor (Global Handler).');
 });
 
