@@ -173,32 +173,38 @@ exports.logInteraction = asyncHandler(async (req, res) => {
 
 
 exports.generateSitemap = asyncHandler(async (req, res) => {
-    const mainDomain = 'https://bizno.store';
+    const mainDomain = 'https://www.bizno.store';
+    const lastMod = new Date().toISOString();
 
     let sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
-    sitemapXml += `    <url><loc>${mainDomain}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n`;
-    sitemapXml += `    <url><loc>${mainDomain}/how.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>\n`;
+    
+    const staticPages = [
+        { url: '/', priority: '1.0', changefreq: 'weekly' },
+        { url: '/how.html', priority: '0.8', changefreq: 'monthly' },
+        { url: '/contacto.html', priority: '0.7', changefreq: 'monthly' },
+        { url: '/auth/register.html', priority: '0.9', changefreq: 'monthly' },
+        { url: '/termos-e-condicoes.html', priority: '0.5', changefreq: 'yearly' },
+        { url: '/politica-de-privacidade.html', priority: '0.5', changefreq: 'yearly' }
+    ];
+
+    staticPages.forEach(page => {
+        sitemapXml += `    <url><loc>${mainDomain}${page.url}</loc><lastmod>${lastMod}</lastmod><changefreq>${page.changefreq}</changefreq><priority>${page.priority}</priority></url>\n`;
+    });
 
     const users = await prisma.user.findMany({
         where: {
             role: 'user',
             isVerified: true,
-            planStatus: {
-                in: ['active', 'free']
-            }
-        }
+            planStatus: { in: ['active', 'free'] }
+        },
+        include: { products: true }
     });
 
     for (const user of users) {
-        const storeUrl = `https://${encodeURIComponent(user.storeName)}.bizno.store`;
-        sitemapXml += `    <url><loc>${storeUrl}</loc><lastmod>${user.updatedAt.toISOString()}</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
+        const storeUrl = `https://${user.storeName}.bizno.store`;
+        sitemapXml += `    <url><loc>${storeUrl}/</loc><lastmod>${user.updatedAt.toISOString()}</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
 
-        const products = await prisma.product.findMany({
-            where: {
-                userId: user.id
-            }
-        });
-        for (const product of products) {
+        for (const product of user.products) {
             sitemapXml += `    <url><loc>${storeUrl}/produto/${product.id}</loc><lastmod>${product.updatedAt.toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>\n`;
         }
     }
@@ -206,4 +212,4 @@ exports.generateSitemap = asyncHandler(async (req, res) => {
     sitemapXml += `</urlset>`;
     res.header('Content-Type', 'application/xml');
     res.send(sitemapXml);
-}, 'Erro ao gerar o sitemap.');
+}, 'Erro ao gerar o sitemap dinâmico.');

@@ -213,13 +213,18 @@ exports.updateVisualTheme = asyncHandler(async (req, res) => {
     } = req.body;
     const currentVisual = req.user.visual || {};
 
+    let cleanDescription = storeDescription !== undefined ? storeDescription : currentVisual.storeDescription;
+    if (cleanDescription && cleanDescription.length > 150) {
+        cleanDescription = cleanDescription.substring(0, 150);
+    }
+
     const newVisual = {
         ...currentVisual,
         corPrimaria: corPrimaria || currentVisual.corPrimaria,
         corFundo: corFundo || currentVisual.corFundo,
         corTexto: corTexto || currentVisual.corTexto,
         corCards: corCards || currentVisual.corCards,
-        storeDescription: storeDescription !== undefined ? storeDescription : currentVisual.storeDescription
+        storeDescription: cleanDescription
     };
 
     const updatedUser = await prisma.user.update({
