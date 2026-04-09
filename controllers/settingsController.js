@@ -63,16 +63,21 @@ exports.updateAccountInfo = asyncHandler(async (req, res) => {
         displayName,
         whatsapp
     } = req.body;
+
     if (!storeName || !displayName || !whatsapp) return res.status(400).json({
         success: false,
         message: 'Campos obrigatórios em falta.'
     });
 
-    const urlFriendlyStoreName = sanitizeStoreNameForURL(storeName);
+    // PROTEÇÃO: Corte estrito para 50 caracteres (tanto para URL quanto para o nome visível)
+    const urlFriendlyStoreName = sanitizeStoreNameForURL(String(storeName).substring(0, 50));
     if (!urlFriendlyStoreName) return res.status(400).json({
         success: false,
         message: 'Nome da loja inválido.'
     });
+
+    const safeDisplayName = String(displayName).substring(0, 50);
+    const safeWhatsapp = String(whatsapp).substring(0, 20);
 
     if (urlFriendlyStoreName !== req.user.storeName) {
         const existingStore = await prisma.user.findFirst({
@@ -92,8 +97,8 @@ exports.updateAccountInfo = asyncHandler(async (req, res) => {
         },
         data: {
             storeName: urlFriendlyStoreName,
-            displayName,
-            whatsapp
+            displayName: safeDisplayName,
+            whatsapp: safeWhatsapp
         }
     });
     res.status(200).json({
@@ -214,8 +219,8 @@ exports.updateVisualTheme = asyncHandler(async (req, res) => {
     const currentVisual = req.user.visual || {};
 
     let cleanDescription = storeDescription !== undefined ? storeDescription : currentVisual.storeDescription;
-    if (cleanDescription && cleanDescription.length > 150) {
-        cleanDescription = cleanDescription.substring(0, 150);
+    if (cleanDescription && String(cleanDescription).length > 150) {
+        cleanDescription = String(cleanDescription).substring(0, 150);
     }
 
     const newVisual = {
@@ -310,11 +315,11 @@ exports.updateContacts = asyncHandler(async (req, res) => {
         showPhone: !!showPhone,
         showEmail: !!showEmail,
         showSocials: !!showSocials,
-        customWhatsappMessage: customWhatsappMessage || '',
+        customWhatsappMessage: customWhatsappMessage ? String(customWhatsappMessage).substring(0, 200) : '',
         socials: {
-            facebook: socials?.facebook || '',
-            instagram: socials?.instagram || '',
-            tiktok: socials?.tiktok || ''
+            facebook: socials?.facebook ? String(socials.facebook).substring(0, 200) : '',
+            instagram: socials?.instagram ? String(socials.instagram).substring(0, 200) : '',
+            tiktok: socials?.tiktok ? String(socials.tiktok).substring(0, 200) : ''
         },
         paymentMethods: {
             mpesa: !!paymentMethods?.mpesa,
@@ -410,13 +415,15 @@ exports.verifyPaymentStatus = asyncHandler(async (req, res) => {
     const payment = await prisma.payment.findFirst({
         where: {
             OR: [{
-                gatewayReference
-            }, {
-                proof: {
-                    path: ['internalReference'],
-                    equals: gatewayReference
+                    gatewayReference
+                },
+                {
+                    proof: {
+                        path: ['internalReference'],
+                        equals: gatewayReference
+                    }
                 }
-            }]
+            ]
         },
         include: {
             plan: true,
@@ -478,7 +485,6 @@ exports.getPaymentHistory = asyncHandler(async (req, res) => {
     });
 
     let statusUpdated = false;
-
 
     await Promise.all(history.map(async (payment) => {
         if (payment.status === 'pending') {

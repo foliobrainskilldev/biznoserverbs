@@ -174,7 +174,6 @@ exports.getStatisticsData = asyncHandler(async (req, res) => {
     });
 }, 'Erro ao carregar dados de estatísticas.');
 
-// INTEGRAÇÃO: Oculta a META data antes de enviar para o Frontend
 exports.getOrders = asyncHandler(async (req, res) => {
     const orders = await prisma.interaction.findMany({
         where: { userId: req.user.id, type: 'order' },
@@ -190,7 +189,7 @@ exports.getOrders = asyncHandler(async (req, res) => {
         return {
             id: order.id,
             createdAt: order.createdAt,
-            details: parts[0], // Esconde o JSON do frontend
+            details: parts[0],
             status
         };
     });
@@ -198,10 +197,15 @@ exports.getOrders = asyncHandler(async (req, res) => {
     res.status(200).json({ success: true, orders: formattedOrders });
 }, 'Erro ao buscar pedidos.');
 
-// INTEGRAÇÃO: Atualiza o status e deduz o estoque usando a META invisível
 exports.updateOrderStatus = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
+    
+    // PROTEÇÃO: Apenas aceitar status que estão definidos pela lógica
+    const allowedStatuses = ['pending', 'sold', 'cancelled'];
+    if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({ success: false, message: 'Status do pedido é inválido.' });
+    }
     
     const interaction = await prisma.interaction.findFirst({
         where: { id, userId: req.user.id, type: 'order' }
@@ -221,7 +225,6 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Este pedido já foi marcado como vendido e o estoque já foi deduzido.' });
     }
     
-    // Se foi marcado como VENDIDO, abate do estoque
     if (status === 'sold') {
         for (const item of meta.items) {
             if (item.id && item.quantity) {

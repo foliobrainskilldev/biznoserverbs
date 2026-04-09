@@ -16,25 +16,26 @@ const loginLimiter = rateLimit({
 });
 
 const registerRules = () => [
-    body('storeName', 'O nome da loja deve ter pelo menos 3 caracteres').notEmpty().isString().trim().isLength({ min: 3 }),
-    body('whatsapp', 'O número de WhatsApp é obrigatório').notEmpty().isString().trim(),
-    body('email', 'Inclua um e-mail válido').isEmail().normalizeEmail(),
-    body('password', 'A senha deve ter pelo menos 6 caracteres').isLength({ min: 6 })
+    // PROTEÇÃO ATUALIZADA: Nome da loja limitado rigidamente a 50 caracteres
+    body('storeName', 'O nome da loja deve ter entre 3 e 50 caracteres').notEmpty().isString().trim().isLength({ min: 3, max: 50 }),
+    body('whatsapp', 'O número de WhatsApp é obrigatório e deve ser válido').notEmpty().isString().trim().isLength({ max: 20 }),
+    body('email', 'Inclua um e-mail válido com no máximo 100 caracteres').isEmail().normalizeEmail().isLength({ max: 100 }),
+    body('password', 'A senha deve ter entre 6 e 100 caracteres').isLength({ min: 6, max: 100 })
 ];
 
 const loginRules = () => [
-    body('email', 'Inclua um e-mail válido').isEmail().normalizeEmail(),
-    body('password', 'A senha é obrigatória').notEmpty()
+    body('email', 'Inclua um e-mail válido').isEmail().normalizeEmail().isLength({ max: 100 }),
+    body('password', 'A senha é obrigatória e deve ter um limite razoável').notEmpty().isLength({ max: 100 })
 ];
 
 const emailRules = () => [
-    body('email', 'Inclua um e-mail válido').isEmail().normalizeEmail()
+    body('email', 'Inclua um e-mail válido').isEmail().normalizeEmail().isLength({ max: 100 })
 ];
 
 const resetPasswordRules = () => [
-    body('email', 'Inclua um e-mail válido').isEmail().normalizeEmail(),
-    body('code', 'O código de verificação é obrigatório').notEmpty().isString().trim(),
-    body('newPassword', 'A nova senha deve ter pelo menos 6 caracteres').isLength({ min: 6 })
+    body('email', 'Inclua um e-mail válido').isEmail().normalizeEmail().isLength({ max: 100 }),
+    body('code', 'O código de verificação é obrigatório e deve ter 6 dígitos').notEmpty().isString().trim().isLength({ max: 6 }),
+    body('newPassword', 'A nova senha deve ter entre 6 e 100 caracteres').isLength({ min: 6, max: 100 })
 ];
 
 const validate = (req, res, next) => {

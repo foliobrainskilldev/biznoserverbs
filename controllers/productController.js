@@ -72,17 +72,31 @@ exports.createProduct = asyncHandler(async (req, res) => {
         success: false,
         message: 'Limite de produtos em destaque atingido.'
     });
+    
     if (!name || !price || !category) return res.status(400).json({
         success: false,
         message: 'Nome, preço e categoria obrigatórios.'
     });
 
-    const finalPrice = parseFloat(price);
-    const finalStock = stock ? parseInt(stock) : 0;
-    const finalOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
+    // PROTEÇÃO: Truncar strings para evitar DB Overflow
+    const safeName = String(name).substring(0, 150);
+    const safeDescription = description ? String(description).substring(0, 2000) : '';
 
-    if (finalPrice < 0) return res.status(400).json({ success: false, message: 'O preço não pode ser negativo.' });
-    if (finalStock < 0) return res.status(400).json({ success: false, message: 'O estoque não pode ser negativo.' });
+    // PROTEÇÃO: Validação estrita de números (Sem negativos e sem NaN)
+    let finalPrice = parseFloat(price);
+    if (isNaN(finalPrice) || finalPrice < 0) {
+        return res.status(400).json({ success: false, message: 'O preço deve ser um valor numérico válido e maior ou igual a zero.' });
+    }
+
+    let finalStock = stock ? parseInt(stock, 10) : 0;
+    if (isNaN(finalStock) || finalStock < 0) {
+        return res.status(400).json({ success: false, message: 'O estoque deve ser um número inteiro válido e não pode ser negativo.' });
+    }
+
+    let finalOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
+    if (finalOriginalPrice !== null && (isNaN(finalOriginalPrice) || finalOriginalPrice < 0)) {
+        return res.status(400).json({ success: false, message: 'O preço antigo (promocional) é inválido.' });
+    }
 
     let uploadedImages = [];
     if (req.files?.length) {
@@ -107,10 +121,10 @@ exports.createProduct = asyncHandler(async (req, res) => {
     const product = await prisma.product.create({
         data: {
             userId: req.user.id,
-            name,
+            name: safeName,
             price: finalPrice,
             categoryId: category,
-            description,
+            description: safeDescription,
             stock: finalStock,
             images: uploadedImages,
             isFeatured,
@@ -133,6 +147,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
     const product = await prisma.product.findFirst({
         where: { id, userId: req.user.id }
     });
+    
     if (!product) return res.status(404).json({
         success: false,
         message: "Produto não encontrado."
@@ -143,12 +158,25 @@ exports.updateProduct = asyncHandler(async (req, res) => {
         message: 'Limite de destaques atingido.'
     });
 
-    const finalPrice = parseFloat(price);
-    const finalStock = stock ? parseInt(stock) : 0;
-    const finalOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
+    // PROTEÇÃO: Truncar strings
+    const safeName = String(name).substring(0, 150);
+    const safeDescription = description ? String(description).substring(0, 2000) : '';
 
-    if (finalPrice < 0) return res.status(400).json({ success: false, message: 'O preço não pode ser negativo.' });
-    if (finalStock < 0) return res.status(400).json({ success: false, message: 'O estoque não pode ser negativo.' });
+    // PROTEÇÃO: Validação estrita de números
+    let finalPrice = parseFloat(price);
+    if (isNaN(finalPrice) || finalPrice < 0) {
+        return res.status(400).json({ success: false, message: 'O preço deve ser um valor válido e não negativo.' });
+    }
+
+    let finalStock = stock ? parseInt(stock, 10) : 0;
+    if (isNaN(finalStock) || finalStock < 0) {
+        return res.status(400).json({ success: false, message: 'O estoque não pode ser negativo ou inválido.' });
+    }
+
+    let finalOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
+    if (finalOriginalPrice !== null && (isNaN(finalOriginalPrice) || finalOriginalPrice < 0)) {
+        return res.status(400).json({ success: false, message: 'O preço promocional é inválido.' });
+    }
 
     const existingImagesArray = existingImages ? (Array.isArray(existingImages) ? existingImages : [existingImages]) : [];
 
@@ -190,10 +218,10 @@ exports.updateProduct = asyncHandler(async (req, res) => {
     const updatedProduct = await prisma.product.update({
         where: { id },
         data: {
-            name,
+            name: safeName,
             price: finalPrice,
             categoryId: category,
-            description,
+            description: safeDescription,
             stock: finalStock,
             images: finalImages,
             isFeatured,
@@ -337,10 +365,13 @@ exports.createCategory = asyncHandler(async (req, res) => {
         success: false,
         message: 'O nome é obrigatório.'
     });
+    
+    const safeName = String(req.body.name).substring(0, 50); // Proteção contra nomes gigantes
+    
     const category = await prisma.category.create({
         data: {
             userId: req.user.id,
-            name: req.body.name
+            name: safeName
         }
     });
     res.status(201).json({
@@ -369,9 +400,12 @@ exports.updateCategory = asyncHandler(async (req, res) => {
         success: false,
         message: 'Categoria não encontrada.'
     });
+    
+    const safeName = String(req.body.name).substring(0, 50);
+    
     const updatedCategory = await prisma.category.update({
         where: { id: category.id },
-        data: { name: req.body.name }
+        data: { name: safeName }
     });
     res.status(200).json({
         success: true,

@@ -152,23 +152,29 @@ exports.getPlans = asyncHandler(async (req, res) => {
 
 
 exports.logInteraction = asyncHandler(async (req, res) => {
-    const {
-        storeOwnerId,
-        type,
-        details
-    } = req.body;
+    const { storeOwnerId, type, details } = req.body;
+    
     if (!storeOwnerId || !type || !details) return res.status(400).json({
         success: false,
         message: 'Dados insuficientes.'
     });
 
+    // PROTEÇÃO CRÍTICA: Se a string enviada for gigantesca, corta-a. Impede ataques de BD.
+    let safeDetails = typeof details === 'string' ? details : JSON.stringify(details);
+    if (safeDetails.length > 5000) {
+        safeDetails = safeDetails.substring(0, 4990) + '\n...[DADOS TRUNCADOS POR SEGURANÇA]';
+    }
+
+    const safeType = String(type).substring(0, 50);
+
     await prisma.interaction.create({
         data: {
             userId: storeOwnerId,
-            type,
-            details
+            type: safeType,
+            details: safeDetails
         }
     });
+    
     res.status(200).json({
         success: true,
         message: 'Interação registada.'
