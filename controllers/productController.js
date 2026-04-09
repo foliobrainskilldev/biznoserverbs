@@ -251,10 +251,14 @@ exports.addProductVideo = asyncHandler(async (req, res) => {
         success: false,
         message: 'Produto não encontrado.'
     });
-    if (!await checkPlanLimits(req.user, 'video', { isExistingVideo: !!product.video })) return res.status(403).json({
-        success: false,
-        message: 'Limite de vídeos atingido.'
-    });
+    
+    if (!await checkPlanLimits(req.user, 'video', { isExistingVideo: !!product.video })) {
+        return res.status(403).json({
+            success: false,
+            message: 'O seu plano atual não permite o upload de vídeos ou o limite foi atingido.'
+        });
+    }
+
     if (!req.file) return res.status(400).json({
         success: false,
         message: 'Nenhum ficheiro enviado.'
