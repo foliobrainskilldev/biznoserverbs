@@ -89,11 +89,14 @@ exports.createProduct = asyncHandler(async (req, res) => {
         }));
     }
 
+    const finalPrice = parseFloat(price);
+    const finalOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
+
     let promotionData = null;
-    if (originalPrice && parseFloat(originalPrice) > parseFloat(price)) {
+    if (finalOriginalPrice && finalOriginalPrice > finalPrice) {
         promotionData = {
-            originalPrice: parseFloat(originalPrice),
-            discountPercentage: calculateDiscountPercentage(originalPrice, price)
+            originalPrice: finalOriginalPrice,
+            discountPercentage: calculateDiscountPercentage(finalOriginalPrice, finalPrice)
         };
     }
 
@@ -101,7 +104,7 @@ exports.createProduct = asyncHandler(async (req, res) => {
         data: {
             userId: req.user.id,
             name,
-            price: parseFloat(price),
+            price: finalPrice,
             categoryId: category,
             description,
             stock: stock ? parseInt(stock) : 0,
@@ -165,11 +168,14 @@ exports.updateProduct = asyncHandler(async (req, res) => {
     const keptImages = (product.images || []).filter(img => existingImagesArray.includes(img.public_id));
     const finalImages = [...keptImages, ...newUploadedImages];
 
+    const finalPrice = parseFloat(price);
+    const finalOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
+
     let promotionData = null;
-    if (originalPrice && parseFloat(originalPrice) > parseFloat(price)) {
+    if (finalOriginalPrice && finalOriginalPrice > finalPrice) {
         promotionData = {
-            originalPrice: parseFloat(originalPrice),
-            discountPercentage: calculateDiscountPercentage(originalPrice, price)
+            originalPrice: finalOriginalPrice,
+            discountPercentage: calculateDiscountPercentage(finalOriginalPrice, finalPrice)
         };
     }
 
@@ -177,7 +183,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
         where: { id },
         data: {
             name,
-            price: parseFloat(price),
+            price: finalPrice,
             categoryId: category,
             description,
             stock: stock ? parseInt(stock) : 0,
