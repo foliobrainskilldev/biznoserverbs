@@ -77,6 +77,13 @@ exports.createProduct = asyncHandler(async (req, res) => {
         message: 'Nome, preço e categoria obrigatórios.'
     });
 
+    const finalPrice = parseFloat(price);
+    const finalStock = stock ? parseInt(stock) : 0;
+    const finalOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
+
+    if (finalPrice < 0) return res.status(400).json({ success: false, message: 'O preço não pode ser negativo.' });
+    if (finalStock < 0) return res.status(400).json({ success: false, message: 'O estoque não pode ser negativo.' });
+
     let uploadedImages = [];
     if (req.files?.length) {
         const results = await Promise.all(req.files.map(file => cloudinary.uploader.upload(file.path, {
@@ -88,9 +95,6 @@ exports.createProduct = asyncHandler(async (req, res) => {
             public_id: img.public_id
         }));
     }
-
-    const finalPrice = parseFloat(price);
-    const finalOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
 
     let promotionData = null;
     if (finalOriginalPrice && finalOriginalPrice > finalPrice) {
@@ -107,7 +111,7 @@ exports.createProduct = asyncHandler(async (req, res) => {
             price: finalPrice,
             categoryId: category,
             description,
-            stock: stock ? parseInt(stock) : 0,
+            stock: finalStock,
             images: uploadedImages,
             isFeatured,
             promotion: promotionData
@@ -139,6 +143,13 @@ exports.updateProduct = asyncHandler(async (req, res) => {
         message: 'Limite de destaques atingido.'
     });
 
+    const finalPrice = parseFloat(price);
+    const finalStock = stock ? parseInt(stock) : 0;
+    const finalOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
+
+    if (finalPrice < 0) return res.status(400).json({ success: false, message: 'O preço não pode ser negativo.' });
+    if (finalStock < 0) return res.status(400).json({ success: false, message: 'O estoque não pode ser negativo.' });
+
     const existingImagesArray = existingImages ? (Array.isArray(existingImages) ? existingImages : [existingImages]) : [];
 
     if (!await checkPlanLimits(req.user, 'image', {
@@ -168,9 +179,6 @@ exports.updateProduct = asyncHandler(async (req, res) => {
     const keptImages = (product.images || []).filter(img => existingImagesArray.includes(img.public_id));
     const finalImages = [...keptImages, ...newUploadedImages];
 
-    const finalPrice = parseFloat(price);
-    const finalOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
-
     let promotionData = null;
     if (finalOriginalPrice && finalOriginalPrice > finalPrice) {
         promotionData = {
@@ -186,7 +194,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
             price: finalPrice,
             categoryId: category,
             description,
-            stock: stock ? parseInt(stock) : 0,
+            stock: finalStock,
             images: finalImages,
             isFeatured,
             promotion: promotionData
