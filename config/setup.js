@@ -21,6 +21,7 @@ const config = {
         api_secret: process.env.CLOUDINARY_API_SECRET,
     },
     corsOrigins: corsOrigins,
+    baseDomain: 'bizno.store',
     paysuite: {
         apiUrl: process.env.PAYSUITE_API_BASE_URL || 'https://paysuite.tech/api/v1',
         token: process.env.PAYSUITE_API_TOKEN,

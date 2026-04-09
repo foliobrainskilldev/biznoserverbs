@@ -28,9 +28,10 @@ const corsOptions = {
             return callback(null, true);
         }
 
-        const isEnvAllowed = Array.isArray(config.corsOrigins) && config.corsOrigins.includes(origin);
+        const isMainAllowed = config.corsOrigins.includes(origin);
+        const isSubdomain = origin.endsWith(config.baseDomain);
 
-        if (isEnvAllowed) {
+        if (isMainAllowed || isSubdomain) {
             callback(null, true);
         } else {
             console.error(`[CORS BLOQUEADO] Origem não autorizada: ${origin}`);
@@ -82,7 +83,7 @@ prisma.$connect()
         
         app.listen(config.port, () => {
             console.log(`Servidor Bizno a correr na porta ${config.port}`);
-            console.log(`Configuração CORS ativa restrita ao ENV:`, config.corsOrigins);
+            console.log(`Configuração CORS ativa restrita ao domínio e subdomínios.`);
         });
     })
     .catch(err => {

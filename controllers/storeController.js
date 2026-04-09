@@ -67,6 +67,10 @@ exports.getPublicStoreData = asyncHandler(async (req, res) => {
         password,
         verificationCode,
         passwordResetCode,
+        email,
+        verificationExpires,
+        passwordResetExpires,
+        id,
         ...safeUser
     } = user;
 
