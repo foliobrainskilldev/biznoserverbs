@@ -61,9 +61,9 @@ const initializeDefaults = async () => {
         const planCount = await prisma.plan.count();
         if (planCount === 0) {
             const defaultPlans = [
-                { name: 'Free', price: 0, productLimit: 5, imageLimitPerProduct: 1, videoLimit: 0, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'faqs', isVisible: true },
-                { name: 'Starter', price: 500, productLimit: 50, imageLimitPerProduct: 3, videoLimit: 0, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'basic', isVisible: true },
-                { name: 'Business', price: 1200, productLimit: 200, imageLimitPerProduct: 10, videoLimit: 30, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'priority', hasPromotionTimer: true, isVisible: true },
+                { name: 'Free', price: 0, productLimit: 5, imageLimitPerProduct: 1, videoLimit: 0, categoriesLimit: -1, hasColorCustomization: false, hasPromotions: true, hasFeaturedProducts: false, hasSupport: 'faqs', isVisible: true },
+                { name: 'Starter', price: 290, productLimit: 70, imageLimitPerProduct: 3, videoLimit: 0, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: false, hasSupport: 'basic', isVisible: true },
+                { name: 'Business', price: 890, productLimit: 200, imageLimitPerProduct: 10, videoLimit: 30, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'priority', hasPromotionTimer: true, isVisible: true },
                 { name: 'Personalizado', price: 0, productLimit: -1, imageLimitPerProduct: -1, videoLimit: -1, categoriesLimit: -1, hasColorCustomization: true, hasPromotions: true, hasFeaturedProducts: true, hasSupport: 'dedicated', hasPromotionTimer: true, isCustom: true, isVisible: true }
             ];
             await prisma.plan.createMany({ data: defaultPlans });
