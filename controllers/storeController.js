@@ -63,6 +63,7 @@ exports.getPublicStoreData = asyncHandler(async (req, res) => {
         }
     }).catch(() => {});
 
+    
     const {
         password,
         verificationCode,
@@ -70,7 +71,6 @@ exports.getPublicStoreData = asyncHandler(async (req, res) => {
         email,
         verificationExpires,
         passwordResetExpires,
-        id,
         ...safeUser
     } = user;
 
@@ -159,7 +159,6 @@ exports.logInteraction = asyncHandler(async (req, res) => {
         message: 'Dados insuficientes.'
     });
 
-    // PROTEÇÃO CRÍTICA: Se a string enviada for gigantesca, corta-a. Impede ataques de BD.
     let safeDetails = typeof details === 'string' ? details : JSON.stringify(details);
     if (safeDetails.length > 5000) {
         safeDetails = safeDetails.substring(0, 4990) + '\n...[DADOS TRUNCADOS POR SEGURANÇA]';
