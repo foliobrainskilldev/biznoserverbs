@@ -69,7 +69,6 @@ exports.updateAccountInfo = asyncHandler(async (req, res) => {
         message: 'Campos obrigatórios em falta.'
     });
 
-    // PROTEÇÃO: Corte estrito para 50 caracteres (tanto para URL quanto para o nome visível)
     const urlFriendlyStoreName = sanitizeStoreNameForURL(String(storeName).substring(0, 50));
     if (!urlFriendlyStoreName) return res.status(400).json({
         success: false,

@@ -78,11 +78,9 @@ exports.createProduct = asyncHandler(async (req, res) => {
         message: 'Nome, preço e categoria obrigatórios.'
     });
 
-    // PROTEÇÃO: Truncar strings para evitar DB Overflow
     const safeName = String(name).substring(0, 150);
     const safeDescription = description ? String(description).substring(0, 2000) : '';
 
-    // PROTEÇÃO: Validação estrita de números (Sem negativos e sem NaN)
     let finalPrice = parseFloat(price);
     if (isNaN(finalPrice) || finalPrice < 0) {
         return res.status(400).json({ success: false, message: 'O preço deve ser um valor numérico válido e maior ou igual a zero.' });
@@ -158,11 +156,9 @@ exports.updateProduct = asyncHandler(async (req, res) => {
         message: 'Limite de destaques atingido.'
     });
 
-    // PROTEÇÃO: Truncar strings
     const safeName = String(name).substring(0, 150);
     const safeDescription = description ? String(description).substring(0, 2000) : '';
 
-    // PROTEÇÃO: Validação estrita de números
     let finalPrice = parseFloat(price);
     if (isNaN(finalPrice) || finalPrice < 0) {
         return res.status(400).json({ success: false, message: 'O preço deve ser um valor válido e não negativo.' });
@@ -366,7 +362,7 @@ exports.createCategory = asyncHandler(async (req, res) => {
         message: 'O nome é obrigatório.'
     });
     
-    const safeName = String(req.body.name).substring(0, 50); // Proteção contra nomes gigantes
+    const safeName = String(req.body.name).substring(0, 50); 
     
     const category = await prisma.category.create({
         data: {

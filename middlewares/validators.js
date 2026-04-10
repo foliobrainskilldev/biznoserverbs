@@ -16,7 +16,6 @@ const loginLimiter = rateLimit({
 });
 
 const registerRules = () => [
-    // PROTEÇÃO ATUALIZADA: Nome da loja limitado rigidamente a 50 caracteres
     body('storeName', 'O nome da loja deve ter entre 3 e 50 caracteres').notEmpty().isString().trim().isLength({ min: 3, max: 50 }),
     body('whatsapp', 'O número de WhatsApp é obrigatório e deve ser válido').notEmpty().isString().trim().isLength({ max: 20 }),
     body('email', 'Inclua um e-mail válido com no máximo 100 caracteres').isEmail().normalizeEmail().isLength({ max: 100 }),

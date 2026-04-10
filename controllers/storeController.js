@@ -63,7 +63,6 @@ exports.getPublicStoreData = asyncHandler(async (req, res) => {
         }
     }).catch(() => {});
 
-    
     const {
         password,
         verificationCode,

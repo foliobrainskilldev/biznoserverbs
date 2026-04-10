@@ -46,8 +46,8 @@ const getPlanExpirationDate = (days = 30) => {
 
 const getPaginationParams = (req, defaultLimit = 20) => {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    
     let limit = parseInt(req.query.limit, 10) || defaultLimit;
+    
     if (limit > 100) limit = 100; 
     
     const skip = (page - 1) * limit;
