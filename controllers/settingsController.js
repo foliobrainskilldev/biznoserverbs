@@ -135,7 +135,11 @@ exports.applyThemePreset = asyncHandler(async (req, res) => {
 const handleImageUpdate = async (userId, visual, file, type) => {
     if (visual[type] && visual[type].public_id) await cloudinary.uploader.destroy(visual[type].public_id);
     const result = await cloudinary.uploader.upload(file.path, {
-        folder: `bizno/${userId}/visual`
+        folder: `bizno/${userId}/visual`,
+        format: "webp",
+        quality: "auto:good",
+        width: 800,
+        crop: "limit"
     });
     visual[type] = {
         url: result.secure_url,

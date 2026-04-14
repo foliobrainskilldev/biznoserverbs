@@ -4,7 +4,15 @@ const multer = require('multer');
 
 const upload = multer({ 
     dest: 'uploads/',
-    limits: { fileSize: 10 * 1024 * 1024 }
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'];
+        if (allowedMimes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Tipo de ficheiro não suportado. Apenas JPG, PNG, WEBP e MP4 são permitidos.'));
+        }
+    }
 });
 
 const authController = require('../controllers/authController');

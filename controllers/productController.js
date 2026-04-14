@@ -100,7 +100,11 @@ exports.createProduct = asyncHandler(async (req, res) => {
     if (req.files?.length) {
         const results = await Promise.all(req.files.map(file => cloudinary.uploader.upload(file.path, {
             folder: `bizno/${req.user.id}/products`,
-            resource_type: "image"
+            resource_type: "image",
+            format: "webp",
+            quality: "auto:good",
+            width: 1080,
+            crop: "limit"
         })));
         uploadedImages = results.map(img => ({
             url: img.secure_url,
@@ -192,7 +196,12 @@ exports.updateProduct = asyncHandler(async (req, res) => {
     let newUploadedImages = [];
     if (req.files?.length) {
         const results = await Promise.all(req.files.map(file => cloudinary.uploader.upload(file.path, {
-            folder: `bizno/${req.user.id}/products`
+            folder: `bizno/${req.user.id}/products`,
+            resource_type: "image",
+            format: "webp",
+            quality: "auto:good",
+            width: 1080,
+            crop: "limit"
         })));
         newUploadedImages = results.map(img => ({
             url: img.secure_url,
@@ -305,9 +314,14 @@ exports.addProductVideo = asyncHandler(async (req, res) => {
     if (product.video?.public_id) await cloudinary.uploader.destroy(product.video.public_id, {
         resource_type: 'video'
     });
+    
     const result = await cloudinary.uploader.upload(req.file.path, {
         resource_type: "video",
-        folder: `bizno/${req.user.id}/products`
+        folder: `bizno/${req.user.id}/products`,
+        quality: "auto",
+        width: 720,
+        crop: "limit",
+        bit_rate: "500k"
     });
 
     const updatedProduct = await prisma.product.update({
