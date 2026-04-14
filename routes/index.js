@@ -2,10 +2,9 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 
-// LIMITAR UPLOADS NO BACKEND
 const upload = multer({ 
     dest: 'uploads/',
-    limits: { fileSize: 10 * 1024 * 1024 } // 10 Megabytes
+    limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 const authController = require('../controllers/authController');
@@ -32,6 +31,7 @@ router.get('/ping', (req, res) => {
 
 router.post('/register', registerRules(), validate, authController.registerUser);
 router.post('/login', loginRules(), validate, loginLimiter, authController.loginUser);
+router.post('/google-auth', authController.googleAuth);
 router.post('/verify-email', authController.verifyEmail);
 router.post('/resend-verification', emailRules(), validate, emailLimiter, authController.resendVerificationCode);
 router.post('/forgot-password', emailRules(), validate, emailLimiter, authController.forgotPassword);
