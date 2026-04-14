@@ -378,10 +378,27 @@ exports.createCategory = asyncHandler(async (req, res) => {
     
     const safeName = String(req.body.name).substring(0, 50); 
     
+    let uploadedImage = null;
+    if (req.file) {
+        const result = await cloudinary.uploader.upload(req.file.path, {
+            folder: `bizno/${req.user.id}/categories`,
+            resource_type: "image",
+            format: "webp",
+            quality: "auto:good",
+            width: 800,
+            crop: "limit"
+        });
+        uploadedImage = {
+            url: result.secure_url,
+            public_id: result.public_id
+        };
+    }
+    
     const category = await prisma.category.create({
         data: {
             userId: req.user.id,
-            name: safeName
+            name: safeName,
+            image: uploadedImage
         }
     });
     res.status(201).json({
@@ -413,9 +430,32 @@ exports.updateCategory = asyncHandler(async (req, res) => {
     
     const safeName = String(req.body.name).substring(0, 50);
     
+    let uploadedImage = category.image;
+    
+    if (req.file) {
+        if (category.image && category.image.public_id) {
+            await cloudinary.uploader.destroy(category.image.public_id);
+        }
+        const result = await cloudinary.uploader.upload(req.file.path, {
+            folder: `bizno/${req.user.id}/categories`,
+            resource_type: "image",
+            format: "webp",
+            quality: "auto:good",
+            width: 800,
+            crop: "limit"
+        });
+        uploadedImage = {
+            url: result.secure_url,
+            public_id: result.public_id
+        };
+    }
+    
     const updatedCategory = await prisma.category.update({
         where: { id: category.id },
-        data: { name: safeName }
+        data: { 
+            name: safeName,
+            image: uploadedImage
+        }
     });
     res.status(200).json({
         success: true,
@@ -440,6 +480,10 @@ exports.deleteCategory = asyncHandler(async (req, res) => {
         success: false,
         message: `Usada por ${productCount} produto(s). Não pode ser removida.`
     });
+
+    if (category.image && category.image.public_id) {
+        await cloudinary.uploader.destroy(category.image.public_id);
+    }
 
     await prisma.category.delete({
         where: { id: category.id }

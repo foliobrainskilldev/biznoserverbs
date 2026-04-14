@@ -97,8 +97,8 @@ userProtectedRoutes.post('/products/:id/toggle-feature', checkPlanStatus, produc
 userProtectedRoutes.post('/products/:id/video', checkPlanStatus, upload.single('video'), productController.addProductVideo);
 
 userProtectedRoutes.get('/categories', productController.getCategories);
-userProtectedRoutes.post('/categories', checkPlanStatus, productController.createCategory);
-userProtectedRoutes.put('/categories/:id', checkPlanStatus, productController.updateCategory);
+userProtectedRoutes.post('/categories', checkPlanStatus, upload.single('image'), productController.createCategory);
+userProtectedRoutes.put('/categories/:id', checkPlanStatus, upload.single('image'), productController.updateCategory);
 userProtectedRoutes.delete('/categories/:id', checkPlanStatus, productController.deleteCategory);
 
 userProtectedRoutes.get('/my-account', settingsController.getAccountInfo);
