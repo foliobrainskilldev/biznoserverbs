@@ -218,9 +218,7 @@ exports.updateVisualTheme = asyncHandler(async (req, res) => {
     const currentVisual = req.user.visual || {};
 
     let cleanDescription = storeDescription !== undefined ? storeDescription : currentVisual.storeDescription;
-    if (cleanDescription && String(cleanDescription).length > 150) {
-        cleanDescription = String(cleanDescription).substring(0, 150);
-    }
+    if (cleanDescription && String(cleanDescription).length > 150) cleanDescription = String(cleanDescription).substring(0, 150);
 
     const newVisual = {
         ...currentVisual,
@@ -414,15 +412,13 @@ exports.verifyPaymentStatus = asyncHandler(async (req, res) => {
     const payment = await prisma.payment.findFirst({
         where: {
             OR: [{
-                    gatewayReference
-                },
-                {
-                    proof: {
-                        path: ['internalReference'],
-                        equals: gatewayReference
-                    }
+                gatewayReference
+            }, {
+                proof: {
+                    path: ['internalReference'],
+                    equals: gatewayReference
                 }
-            ]
+            }]
         },
         include: {
             plan: true,
@@ -438,7 +434,6 @@ exports.verifyPaymentStatus = asyncHandler(async (req, res) => {
         success: false,
         message: 'Acesso negado.'
     });
-
     if (payment.status === 'approved') return res.status(200).json({
         success: true,
         status: 'approved',
@@ -523,3 +518,31 @@ exports.getCurrentPlan = asyncHandler(async (req, res) => {
         }
     });
 }, 'Erro ao obter dados do plano.');
+
+exports.downgradeToFree = asyncHandler(async (req, res) => {
+    const freePlan = await prisma.plan.findUnique({
+        where: {
+            name: 'Free'
+        }
+    });
+    if (!freePlan) return res.status(404).json({
+        success: false,
+        message: 'Plano Free não encontrado no sistema.'
+    });
+
+    await prisma.user.update({
+        where: {
+            id: req.user.id
+        },
+        data: {
+            planId: freePlan.id,
+            planStatus: 'free',
+            planExpiresAt: null
+        }
+    });
+
+    res.status(200).json({
+        success: true,
+        message: 'Conta rebaixada para o Plano Grátis com sucesso.'
+    });
+}, 'Erro ao rebaixar plano.');

@@ -44,8 +44,15 @@ const verifyToken = async (req, res, next, requiredRole) => {
 const verifyUserToken = (req, res, next) => verifyToken(req, res, next);
 const verifyAdminToken = (req, res, next) => verifyToken(req, res, next, 'admin');
 
-const checkPlanStatus = (req, res, next) => {
+const checkPlanStatus = async (req, res, next) => {
     if (req.method === 'GET') return next();
+
+    if (req.user.planExpiresAt && new Date(req.user.planExpiresAt) < new Date()) {
+        if (req.user.planStatus !== 'expired') {
+            await prisma.user.update({ where: { id: req.user.id }, data: { planStatus: 'expired' } });
+        }
+        return res.status(403).json({ success: false, message: 'O seu plano expirou. Por favor, renove o seu plano para desbloquear esta funcionalidade.' });
+    }
 
     const allowedStatus = ['active', 'free'];
     

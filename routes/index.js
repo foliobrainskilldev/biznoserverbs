@@ -78,9 +78,7 @@ userProtectedRoutes.get('/dashboard', dashboardController.getDashboardData);
 userProtectedRoutes.get('/dashboard/charts', dashboardController.getDashboardChartData);
 userProtectedRoutes.get('/statistics', dashboardController.getStatisticsData);
 userProtectedRoutes.get('/orders', dashboardController.getOrders);
-
 userProtectedRoutes.put('/orders/:id/status', dashboardController.updateOrderStatus);
-
 userProtectedRoutes.get('/messages', dashboardController.getMessages);
 
 userProtectedRoutes.get('/products', productController.getProducts);
@@ -113,6 +111,7 @@ userProtectedRoutes.post('/contacts', checkPlanStatus, settingsController.update
 userProtectedRoutes.post('/payment/initiate', settingsController.initiatePlanPayment);
 userProtectedRoutes.get('/payment/verify/:gatewayReference', settingsController.verifyPaymentStatus);
 userProtectedRoutes.get('/my-plan', settingsController.getCurrentPlan);
+userProtectedRoutes.post('/my-plan/downgrade', settingsController.downgradeToFree);
 userProtectedRoutes.get('/payment/history', settingsController.getPaymentHistory);
 
 router.use('/', userProtectedRoutes);
