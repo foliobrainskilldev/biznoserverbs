@@ -1,0 +1,231 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  user
+  admin
+}
+
+enum PlanStatus {
+  active
+  expired
+  pending
+  free
+}
+
+enum PaymentStatus {
+  pending
+  approved
+  rejected
+}
+
+model User {
+  id                   String     @id @default(uuid())
+  storeName            String     @unique
+  displayName          String?
+  whatsapp             String?
+  email                String     @unique
+  password             String
+  role                 Role       @default(user)
+  isVerified           Boolean    @default(false)
+  verificationCode     String?
+  verificationExpires  DateTime?
+  passwordResetCode    String?
+  passwordResetExpires DateTime?
+
+  planId               String?
+  plan                 Plan?      @relation(fields: [planId], references: [id])
+  planExpiresAt        DateTime?
+  planStatus           PlanStatus @default(pending)
+  storageUsed          Float      @default(0)
+  clickCount           Int        @default(0)
+
+  visual               Json?
+  contacts             Json?
+  deliverySettings     Json?
+
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  categories           Category[]
+  products             Product[]
+  payments             Payment[]
+  visits               Visit[]
+  interactions         Interaction[]
+  coupons              Coupon[]
+  customers            Customer[]
+  abandonedCarts       AbandonedCart[]
+  processedPayments    Payment[]  @relation("ProcessedPayments")
+}
+
+model Plan {
+  id                    String   @id @default(uuid())
+  name                  String   @unique
+  price                 Float
+  productLimit          Int
+  imageLimitPerProduct  Int
+  videoLimit            Int
+  categoriesLimit       Int      @default(-1)
+  hasColorCustomization Boolean  @default(false)
+  hasPromotions         Boolean  @default(false)
+  hasFeaturedProducts   Boolean  @default(false)
+  hasPromotionTimer     Boolean  @default(false)
+  hasSupport            String?
+  isCustom              Boolean  @default(false)
+  isVisible             Boolean  @default(true)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  users                 User[]
+  payments              Payment[]
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  image     Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products  Product[]
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  seoDescription String?
+  price          Float
+  categoryId     String
+  category       Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  images         Json     @default("[]")
+  video          Json?
+  stock          Int      @default(0)
+  isFeatured     Boolean  @default(false)
+  viewCount      Int      @default(0)
+  promotion      Json?
+  variants       Json?
+  addons         Json?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Coupon {
+  id                 String    @id @default(uuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code               String
+  discountPercentage Float?
+  discountFixed      Float?
+  maxUses            Int?
+  currentUses        Int       @default(0)
+  validUntil         DateTime?
+  isActive           Boolean   @default(true)
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model Customer {
+  id             String          @id @default(uuid())
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  phone          String
+  totalPurchases Int             @default(0)
+  lastPurchaseAt DateTime?       @default(now())
+  
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  abandonedCarts AbandonedCart[]
+}
+
+model AbandonedCart {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items       Json
+  totalValue  Float
+  status      String    @default("abandoned")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Payment {
+  id               String        @id @default(uuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId           String
+  plan             Plan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  proof            Json?
+  gatewayReference String?       @unique
+  provider         String?
+
+  status           PaymentStatus @default(pending)
+  rejectionReason  String?
+
+  processedById    String?
+  processedBy      User?         @relation("ProcessedPayments", fields: [processedById], references: [id], onDelete: SetNull)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model BankAccount {
+  id             String   @id @default(uuid())
+  bankName       String
+  accountName    String?
+  accountDetails String
+  instructions   String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     String
+  message   String
+  context   String?
+  meta      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Interaction {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  details   String
+  status    String   @default("new")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Visit {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
