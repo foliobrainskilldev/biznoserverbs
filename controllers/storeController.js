@@ -381,14 +381,15 @@ exports.logInteraction = asyncHandler(async (req, res) => {
             success: false,
             message: 'Carrinho vazio.'
         });
+        
+        // CORREÇÃO: O Prisma não aceita `include: { jsonField }`. 
+        // Não precisamos do include para receber a coluna deliverySettings
         const store = await prisma.user.findUnique({
             where: {
                 id: storeOwnerId
-            },
-            include: {
-                deliverySettings: true
             }
         });
+        
         if (!store) return res.status(404).json({
             success: false,
             message: 'Loja não encontrada.'
